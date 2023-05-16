@@ -1,0 +1,10 @@
+# This is an example of how to structure your env file.
+# You will need to change the values to your own.
+
+# Do not share your OpenAI API key with anyone! It should remain a secret.
+# Do not commit this file! Ensure .env is in the .gitignore!
+OPENAI_API_KEY=123abcdefghijklmnop
+
+TRANSLATEGPT_JS_PATH="~/your_cool_project/translations/translateGPT.js"
+TRANSLATEGPT_OUTPUT_DIRECTORY="~/your_cool_project/translations"
+
