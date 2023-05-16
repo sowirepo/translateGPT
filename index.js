@@ -1,15 +1,12 @@
 #!/usr/bin/env node
 
-// TODO
-// return languages correctly
-// accept a list of languages
 // TODO Tokens are 2x as needed because we're not filling in the vlaues thi way, determine if we should?'
 
 require("dotenv").config();
 const { Configuration, OpenAIApi } = require("openai");
-const input = require("./test_translations.json");
 const { encode } = require("gpt-3-encoder");
 const fs = require("fs");
+const { languages, toTranslate } = require("./translations/translateGPT.js");
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
@@ -29,7 +26,7 @@ const isArray = function (a) {
 
 // While loop on object that builds queries out of blank values
 //   and token based splits them
-async function translate(input, language) {
+async function translate(toTranslate, language) {
   if (!configuration.apiKey) {
     console.log(
       "OpenAI API key not configured, please follow instructions in README.md"
@@ -37,32 +34,33 @@ async function translate(input, language) {
     return;
   }
 
-  if (!input) {
-    console.log("Input translations not received.");
+  if (!toTranslate) {
+    console.log("toTranslate translations not received.");
     return;
   }
 
   // Turn source into JSON object with blank values
-  const formatInput = (input) => {
-    const formattedInput = {};
+  const formatToTranslate = (toTranslate) => {
+    const formattedToTranslate = {};
 
-    if (isObject(input)) {
-      Object.keys(input).forEach((key) => {
-        formattedInput[key] = "";
+    if (isObject(toTranslate)) {
+      console.log("hi");
+      Object.keys(toTranslate).forEach((key) => {
+        formattedToTranslate[key] = "";
       });
-    } else if (isArray(input)) {
-      input.forEach((key) => {
-        formattedInput[key] = "";
+    } else if (isArray(toTranslate)) {
+      toTranslate.forEach((key) => {
+        formattedToTranslate[key] = "";
       });
     } else {
-      console.log("Input must either be an object or an array.");
+      console.log("toTranslate must either be an object or an array.");
       return null;
     }
 
-    return formattedInput;
+    return formattedToTranslate;
   };
 
-  const buildQueries = (formattedInput) => {
+  const buildQueries = (formattedToTranslate) => {
     const tokenLimit = 1000;
     const queries = [];
     let buildingTokens = 0;
@@ -72,14 +70,14 @@ async function translate(input, language) {
       return encode(str).length;
     };
 
-    Object.keys(formattedInput).forEach((key) => {
+    Object.keys(formattedToTranslate).forEach((key) => {
       if (buildingTokens >= tokenLimit) {
         queries.push(JSON.stringify(buildingQuery));
         buildingTokens = 0;
         buildingQuery = {};
       }
 
-      if (formattedInput[key] === "") {
+      if (formattedToTranslate[key] === "") {
         buildingQuery[key] = "";
         buildingTokens += getTokenCount(key) * 2 + 4; // TODO fix this
       }
@@ -143,7 +141,7 @@ async function translate(input, language) {
     return appliedResponse;
   };
 
-  let buildingOutput = formatInput(input);
+  let buildingOutput = formatToTranslate(toTranslate);
   console.log("buildOut", buildingOutput);
   let isOutputBuilt = false;
 
@@ -170,14 +168,12 @@ async function translate(input, language) {
 }
 // Try function on result from api to place the values into source json
 // once while loop completes, return filled JSON
-const languages = ["informal dutch", "emoji", "backwards english"];
-
 languages.forEach((language) => {
   (async () => {
-    const result = await translate(input, language);
+    const result = await translate(toTranslate, language[0]);
 
     fs.writeFile(
-      `./output.${language.replace(/\s/g, "_")}.json`,
+      `./translations/translations.${language[1].replace(/\s/g, "_")}.json`,
       JSON.stringify(result),
       (err) => {
         if (err) {
@@ -189,7 +185,3 @@ languages.forEach((language) => {
     );
   })();
 });
-
-module.exports = {
-  translate: translate,
-};
