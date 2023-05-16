@@ -159,24 +159,32 @@ async function translate(toTranslate, language) {
   console.log("build output", buildingOutput);
   return buildingOutput;
 }
-// Try function on result from api to place the values into source json
-// once while loop completes, return filled JSON
-languages.forEach((language) => {
-  (async () => {
-    const result = await translate(toTranslate, language[0]);
 
-    fs.writeFile(
-      `${
-        process.env.TRANSLATEGPT_OUTPUT_FOLDER
-      }/translations.${language[1].replace(/\s/g, "_")}.json`,
-      JSON.stringify(result),
-      (err) => {
-        if (err) {
-          console.error(err);
-          return;
-        }
-        console.log("File written successfully.");
+toTranslate.forEach((toTrans) => {
+  console.log("toTrans", toTrans);
+  languages.forEach((language) => {
+    (async () => {
+      const result = await translate(toTrans[0], language[0]);
+      const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${toTrans[1]}`;
+
+      if (!fs.existsSync(outputDirectory)) {
+        fs.mkdirSync(outputDirectory);
       }
-    );
-  })();
+
+      fs.writeFile(
+        `${outputDirectory}/${toTrans[1]}.${language[1].replace(
+          /\s/g,
+          "_"
+        )}.json`,
+        JSON.stringify(result),
+        (err) => {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          console.log("File written successfully.");
+        }
+      );
+    })();
+  });
 });
