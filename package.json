@@ -1,6 +1,6 @@
 {
   "name": "translategpt",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "A tool to generate language translations using AI.",
   "main": "index.js",
   "bin": {
