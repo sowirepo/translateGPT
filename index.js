@@ -166,25 +166,22 @@ toTranslate.forEach((toTrans) => {
     (async () => {
       const result = await translate(toTrans[0], language[0]);
       const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${toTrans[1]}`;
+      const outputFile = `${outputDirectory}/${
+        toTrans[1]
+      }.${language[1].replace(/\s/g, "_")}.json`;
 
       if (!fs.existsSync(outputDirectory)) {
         fs.mkdirSync(outputDirectory);
+        console.log("Folder created: ", outputDirectory);
       }
 
-      fs.writeFile(
-        `${outputDirectory}/${toTrans[1]}.${language[1].replace(
-          /\s/g,
-          "_"
-        )}.json`,
-        JSON.stringify(result),
-        (err) => {
-          if (err) {
-            console.error(err);
-            return;
-          }
-          console.log("File written successfully.");
+      fs.writeFile(outputFile, JSON.stringify(result), (err) => {
+        if (err) {
+          console.error(err);
+          return;
         }
-      );
+        console.log("File written successfully: ", outputFile);
+      });
     })();
   });
 });
