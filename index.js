@@ -1,12 +1,9 @@
 #!/usr/bin/env node
-
-// TODO Tokens are 2x as needed because we're not filling in the vlaues thi way, determine if we should?'
-
 require("dotenv").config();
 const { Configuration, OpenAIApi } = require("openai");
 const { encode } = require("gpt-3-encoder");
 const fs = require("fs");
-const { languages, toTranslate } = require("./translations/translateGPT.js");
+const { languages, toTranslate } = require(process.env.TRANSLATEGPT_JS_PATH);
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
@@ -20,9 +17,6 @@ const isObject = function (a) {
 const isArray = function (a) {
   return !!a && a.constructor === Array;
 };
-
-// TODO Json smart restructure
-// Get source data
 
 // While loop on object that builds queries out of blank values
 //   and token based splits them
@@ -172,7 +166,9 @@ languages.forEach((language) => {
     const result = await translate(toTranslate, language[0]);
 
     fs.writeFile(
-      `./translations/translations.${language[1].replace(/\s/g, "_")}.json`,
+      `${
+        process.env.TRANSLATEGPT_OUTPUT_FOLDER
+      }/translations.${language[1].replace(/\s/g, "_")}.json`,
       JSON.stringify(result),
       (err) => {
         if (err) {
