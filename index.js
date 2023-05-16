@@ -44,7 +44,6 @@ async function translate(toTranslate, language) {
     const formattedToTranslate = {};
 
     if (isObject(toTranslate)) {
-      console.log("hi");
       Object.keys(toTranslate).forEach((key) => {
         formattedToTranslate[key] = "";
       });
@@ -61,7 +60,7 @@ async function translate(toTranslate, language) {
   };
 
   const buildQueries = (formattedToTranslate) => {
-    const tokenLimit = 1000;
+    const tokenLimit = 500;
     const queries = [];
     let buildingTokens = 0;
     let buildingQuery = {};
@@ -79,7 +78,7 @@ async function translate(toTranslate, language) {
 
       if (formattedToTranslate[key] === "") {
         buildingQuery[key] = "";
-        buildingTokens += getTokenCount(key) * 2 + 4; // TODO fix this
+        buildingTokens += getTokenCount(key) + 4;
       }
     });
 
@@ -180,7 +179,7 @@ languages.forEach((language) => {
           console.error(err);
           return;
         }
-        console.log("file written successfully");
+        console.log("File written successfully.");
       }
     );
   })();
