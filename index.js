@@ -166,9 +166,11 @@ toTranslate.forEach((toTrans) => {
     (async () => {
       const result = await translate(toTrans[0], language[0]);
       const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${toTrans[1]}`;
+      console.log(`Output directory set to: `, outputDirectory);
       const outputFile = `${outputDirectory}/${
         toTrans[1]
       }.${language[1].replace(/\s/g, "_")}.json`;
+      console.log(`Output file set to: `, outputFile);
 
       if (!fs.existsSync(outputDirectory)) {
         fs.mkdirSync(outputDirectory);
