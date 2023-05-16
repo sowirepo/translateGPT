@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 // TODO
 // return languages correctly
 // accept a list of languages
