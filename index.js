@@ -10,13 +10,8 @@ const configuration = new Configuration({
 });
 const openai = new OpenAIApi(configuration);
 
-const isObject = function (a) {
-  return !!a && a.constructor === Object;
-};
-
-const isArray = function (a) {
-  return !!a && a.constructor === Array;
-};
+const isObject = (a) => !!a && a.constructor === Object;
+const isArray = (a) => !!a && a.constructor === Array;
 
 // While loop on object that builds queries out of blank values
 //   and token based splits them
