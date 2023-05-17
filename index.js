@@ -177,7 +177,7 @@ const mergeExistingTranslations = (result, outputFile) => {
     }
   } else {
     console.log("The file does not exist.");
-    return null;
+    return result;
   }
 };
 
