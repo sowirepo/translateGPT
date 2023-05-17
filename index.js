@@ -143,7 +143,8 @@ async function translate(toTranslate, language) {
     console.log("Queries", queries);
 
     for (let query in queries) {
-      const queryResponse = await sendQuery(queries[query], language); // Todo pass language
+      console.log("Translations are still being generated, please wait.");
+      const queryResponse = await sendQuery(queries[query], language);
       console.log("Query response: ", queryResponse);
 
       buildingOutput = generateAppliedResponse(queryResponse, buildingOutput);
