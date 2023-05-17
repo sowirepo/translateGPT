@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 require("dotenv").config();
+const prettier = require("prettier");
 const { Configuration, OpenAIApi } = require("openai");
 const { encode } = require("gpt-3-encoder");
 const fs = require("fs");
@@ -206,13 +207,17 @@ toTranslate.forEach((toTrans) => {
 
       result = mergeExistingTranslations(result, outputFile);
 
-      fs.writeFile(outputFile, JSON.stringify(result), (err) => {
-        if (err) {
-          console.error(err);
-          return;
+      fs.writeFile(
+        outputFile,
+        prettier.format(JSON.stringify(result), { parser: "json" }),
+        (err) => {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          console.log("File written successfully: ", outputFile);
         }
-        console.log("File written successfully: ", outputFile);
-      });
+      );
     })();
   });
 });
