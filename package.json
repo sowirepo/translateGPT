@@ -4,14 +4,14 @@
   "description": "A tool to generate language translations using AI.",
   "main": "index.js",
   "bin": {
-    "translategpt": "./index.js"
+    "translategpt": "index.js"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ariaBennett/translateGPT.git"
+    "url": "git+https://github.com/sowirepo/translateGPT.git"
   },
   "keywords": [
     "translations",
@@ -21,11 +21,11 @@
     "i18n"
   ],
   "author": "Aria Bennett",
-  "license": "ISC",
+  "license": "MIT",
   "bugs": {
-    "url": "https://github.com/ariaBennett/translateGPT/issues"
+    "url": "https://github.com/sowirepo/translateGPT/issues"
   },
-  "homepage": "https://github.com/ariaBennett/translateGPT#readme",
+  "homepage": "https://github.com/sowirepo/translateGPT#readme",
   "devDependencies": {
     "prettier": "^2.8.8"
   },
