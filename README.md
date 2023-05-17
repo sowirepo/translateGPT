@@ -47,7 +47,7 @@ module.exports = {
 };
 ```
 
-Now, run `translategpt` in your terminal to generate translation files. The generated files will be saved in the output directory specified in the `.env` file (e.g., `"~/your_cool_project/translations"`). The generated files will have the following structure: `<namespace>.<language_abbreviation>.json`.
+Now, run `translategpt` in your terminal in the root of your project to generate translation files. The generated files will be saved in the output directory specified in the `.env` file (e.g., `"~/your_cool_project/translations"`). The generated files will have the following structure: `<namespace>.<language_abbreviation>.json`.
 
 ## License
 
