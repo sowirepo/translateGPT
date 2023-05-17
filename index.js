@@ -161,22 +161,55 @@ async function translate(toTranslate, language) {
   return buildingOutput;
 }
 
+const mergeExistingTranslations = (result, outputFile) => {
+  if (fs.existsSync(outputFile)) {
+    const existingJsonData = fs.readFileSync(outputFile, "utf-8");
+
+    try {
+      const parsedExistingData = JSON.parse(existingJsonData);
+      console.log(
+        "Destination file contains translations, merging with new translations."
+      );
+      let mergedTranslations = parsedExistingData;
+      for (let key in result) {
+        mergedTranslations[key] = result[key];
+      }
+      console.log("Merged translations: ", mergedTranslations);
+      return mergedTranslations;
+    } catch {
+      console.log("Destination file currently empty.");
+      return result;
+    }
+  } else {
+    console.log("The file does not exist.");
+    return null;
+  }
+};
+
 toTranslate.forEach((toTrans) => {
   console.log("toTrans", toTrans);
+  const translateStrings = toTrans[0];
+  const translateNamespace = toTrans[1];
   languages.forEach((language) => {
     (async () => {
-      const result = await translate(toTrans[0], language[0]);
-      const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${toTrans[1]}`;
+      const languageDescription = language[0];
+      const languageAbbreviation = language[1];
+      const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${translateNamespace}`;
       console.log(`Output directory set to: `, outputDirectory);
-      const outputFile = `${outputDirectory}/${
-        toTrans[1]
-      }.${language[1].replace(/\s/g, "_")}.json`;
+      const outputFile = `${outputDirectory}/${translateNamespace}.${languageAbbreviation.replace(
+        /\s/g,
+        "_"
+      )}.json`;
       console.log(`Output file set to: `, outputFile);
 
       if (!fs.existsSync(outputDirectory)) {
         fs.mkdirSync(outputDirectory);
         console.log("Folder created: ", outputDirectory);
       }
+
+      let result = await translate(translateStrings, languageDescription);
+
+      result = mergeExistingTranslations(result, outputFile);
 
       fs.writeFile(outputFile, JSON.stringify(result), (err) => {
         if (err) {
