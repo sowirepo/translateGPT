@@ -20,23 +20,17 @@ const isObject = (a) => !!a && a.constructor === Object;
 const isArray = (a) => !!a && a.constructor === Array;
 
 const formatTranslateStrings = (translateStrings) => {
-  // Turn source into JSON object with blank values
-  const formattedTranslateStrings = {};
-
-  if (isObject(translateStrings)) {
-    Object.keys(translateStrings).forEach((key) => {
-      formattedTranslateStrings[key] = "";
-    });
-  } else if (isArray(translateStrings)) {
-    translateStrings.forEach((key) => {
-      formattedTranslateStrings[key] = "";
-    });
-  } else {
+  if (!isObject(translateStrings) && !isArray(translateStrings)) {
     console.log("translateStrings must either be an object or an array.");
     return null;
   }
 
-  return formattedTranslateStrings;
+  return Array.isArray(translateStrings)
+    ? translateStrings.reduce((formattedStrings, key) => {
+        formattedStrings[key] = "";
+        return formattedStrings;
+      }, {})
+    : Object.fromEntries(Object.keys(translateStrings).map((key) => [key, ""]));
 };
 
 const buildQueries = (formattedTranslateStrings) => {
@@ -45,9 +39,7 @@ const buildQueries = (formattedTranslateStrings) => {
   let buildingTokens = 0;
   let buildingQuery = {};
 
-  const getTokenCount = (str) => {
-    return encode(str).length;
-  };
+  const getTokenCount = (str) => encode(str).length;
 
   Object.keys(formattedTranslateStrings).forEach((key) => {
     if (buildingTokens >= tokenLimit) {
@@ -62,21 +54,19 @@ const buildQueries = (formattedTranslateStrings) => {
     }
   });
 
-  if (buildingQuery) {
+  if (Object.keys(buildingQuery).length > 0) {
     queries.push(JSON.stringify(buildingQuery));
   }
 
   return queries;
 };
 
-const generatePrompt = (query, language) => {
-  return [
-    {
-      role: "user",
-      content: `Please return this JSON object with the empty value strings filled in with the translation of the keys into ${language} JSON ONLY. NO DISCUSSION. DON'T ALTER THE KEYS. ALWAYS FILL IN THE EMPTY STRINGS WITH A TRANSLATION:  ${query} `,
-    },
-  ];
-};
+const generatePrompt = (query, language) => [
+  {
+    role: "user",
+    content: `Please return this JSON object with the empty value strings filled in with the translation of the keys into ${language} JSON ONLY. NO DISCUSSION. DON'T ALTER THE KEYS. ALWAYS FILL IN THE EMPTY STRINGS WITH A TRANSLATION:  ${query} `,
+  },
+];
 
 const sendQuery = async (query, language) => {
   try {
@@ -85,8 +75,9 @@ const sendQuery = async (query, language) => {
       messages: generatePrompt(query, language),
       temperature: 1.0,
     });
-    console.log("Query response: ", completion.data.choices[0]);
-    return completion.data.choices[0].message.content;
+    const response = completion.data.choices[0].message.content;
+    console.log("Query response: ", response);
+    return response;
   } catch (error) {
     if (error.response) {
       console.error(error.response.status, error.response.data);
@@ -101,11 +92,9 @@ const generateAppliedResponse = (response, buildingOutput) => {
   let parsedResponse;
 
   try {
-    let lastIndex = response.lastIndexOf("}"); // Attempt to remove non json fluff.
-    let firstIndex = response.lastIndexOf("{", lastIndex);
-    parsedResponse = response.slice(firstIndex, lastIndex + 1);
-
-    parsedResponse = JSON.parse(parsedResponse);
+    const lastIndex = response.lastIndexOf("}");
+    const firstIndex = response.lastIndexOf("{", lastIndex);
+    parsedResponse = JSON.parse(response.slice(firstIndex, lastIndex + 1));
     console.log("Parsed response: ", parsedResponse);
   } catch {
     console.log(`Response parse error, retrying. Response: ${response}`);
@@ -126,7 +115,7 @@ const addMissingSourceTranslations = (
   outputJSON
 ) => {
   console.log(`Adding translations from: ${sourceLanguage[1]}`);
-  let merged = translateStrings;
+  const merged = { ...translateStrings };
 
   if (sourceJSON && outputJSON) {
     console.log("JSON from source and output found, merging.");
@@ -146,10 +135,7 @@ const addMissingSourceTranslations = (
 };
 
 async function translate(toTranslate, language) {
-  // While loop on object that builds queries out of blank values
-  //   and token based splits them
-  let buildingOutput = toTranslate;
-
+  let buildingOutput = { ...toTranslate };
   console.log("buildOut", buildingOutput);
   let isOutputBuilt = false;
 
@@ -157,15 +143,15 @@ async function translate(toTranslate, language) {
     const queries = buildQueries(buildingOutput);
     console.log("Queries", queries);
 
-    if (JSON.stringify(queries) === `["{}"]`) {
+    if (queries.length === 0) {
       console.log(`Finished queries`);
       isOutputBuilt = true;
       return buildingOutput;
     }
 
-    for (let query in queries) {
+    for (let query of queries) {
       console.log("Translations are still being generated, please wait.");
-      const queryResponse = await sendQuery(queries[query], language);
+      const queryResponse = await sendQuery(query, language);
       console.log("Query response: ", queryResponse);
 
       buildingOutput = generateAppliedResponse(queryResponse, buildingOutput);
@@ -174,6 +160,7 @@ async function translate(toTranslate, language) {
   }
 
   console.log("build output", buildingOutput);
+  return buildingOutput;
 }
 
 const mergeExistingTranslations = (result, outputFile) => {
@@ -185,10 +172,7 @@ const mergeExistingTranslations = (result, outputFile) => {
       console.log(
         "Destination file contains translations, merging with new translations."
       );
-      let mergedTranslations = parsedExistingData;
-      for (let key in result) {
-        mergedTranslations[key] = result[key];
-      }
+      const mergedTranslations = { ...parsedExistingData, ...result };
       console.log("Merged translations: ", mergedTranslations);
       return mergedTranslations;
     } catch {
@@ -225,79 +209,73 @@ if (!configuration.apiKey) {
   return;
 }
 
-toTranslate.forEach((toTrans) => {
-  console.log("toTrans", toTrans);
-  let translateStrings = toTrans[0];
-  const translateNamespace = toTrans[1];
-  languages.forEach((language) => {
-    (async () => {
-      const languageDescription = language[0];
-      const languageAbbreviation = language[1];
-      const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${translateNamespace}`;
-      if (!fs.existsSync(outputDirectory)) {
-        fs.mkdirSync(outputDirectory);
-        console.log("Folder created: ", outputDirectory);
-      }
-      console.log(`Output directory set to: `, outputDirectory);
+toTranslate.forEach(([translateStrings, translateNamespace]) => {
+  console.log("toTrans", translateStrings);
+  languages.forEach(async ([languageDescription, languageAbbreviation]) => {
+    const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${translateNamespace}`;
+    if (!fs.existsSync(outputDirectory)) {
+      fs.mkdirSync(outputDirectory);
+      console.log("Folder created: ", outputDirectory);
+    }
+    console.log(`Output directory set to: `, outputDirectory);
 
-      const sourceLanguageFile = `${outputDirectory}/${translateNamespace}.${sourceLanguage.replace(
-        /\s/g,
-        "_"
-      )}.json`;
-      console.log(`Source language file set to: `, sourceLanguageFile);
-      const sourceJSON = getFileJSON(sourceLanguageFile);
-      console.log(`Source JSON set to: `, sourceJSON);
+    const sourceLanguageFile = `${outputDirectory}/${translateNamespace}.${sourceLanguage.replace(
+      /\s/g,
+      "_"
+    )}.json`;
+    console.log(`Source language file set to: `, sourceLanguageFile);
+    const sourceJSON = getFileJSON(sourceLanguageFile);
+    console.log(`Source JSON set to: `, sourceJSON);
 
-      const outputFile = `${outputDirectory}/${translateNamespace}.${languageAbbreviation.replace(
-        /\s/g,
-        "_"
-      )}.json`;
-      console.log(`Output file set to: `, outputFile);
-      const outputJSON = getFileJSON(outputFile);
-      console.log(`Output JSON set to: `, outputJSON);
+    const outputFile = `${outputDirectory}/${translateNamespace}.${languageAbbreviation.replace(
+      /\s/g,
+      "_"
+    )}.json`;
+    console.log(`Output file set to: `, outputFile);
+    const outputJSON = getFileJSON(outputFile);
+    console.log(`Output JSON set to: `, outputJSON);
 
-      console.log("translateStrings before data parsing: ", translateStrings);
+    console.log("translateStrings before data parsing: ", translateStrings);
 
-      let formattedTranslateStrings = formatTranslateStrings(translateStrings);
+    let formattedTranslateStrings = formatTranslateStrings(translateStrings);
 
-      if (useSourceTranslations) {
-        formattedTranslateStrings = addMissingSourceTranslations(
-          formattedTranslateStrings,
-          sourceJSON,
-          outputJSON
-        );
-      }
-
-      console.log(
-        "translateStrings after data parsing: ",
-        formattedTranslateStrings
-      );
-
-      let result = await translate(
+    if (useSourceTranslations) {
+      formattedTranslateStrings = addMissingSourceTranslations(
         formattedTranslateStrings,
-        languageDescription
+        sourceJSON,
+        outputJSON
       );
-      console.log("result", result);
+    }
 
-      result = mergeExistingTranslations(result, outputFile);
+    console.log(
+      "translateStrings after data parsing: ",
+      formattedTranslateStrings
+    );
 
-      console.log(
-        `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
-          result
-        )}`
-      );
+    let result = await translate(
+      formattedTranslateStrings,
+      languageDescription
+    );
+    console.log("result", result);
 
-      fs.writeFile(
-        outputFile,
-        prettier.format(JSON.stringify(result), { parser: "json" }),
-        (err) => {
-          if (err) {
-            console.error(err);
-            return;
-          }
-          console.log("File written successfully: ", outputFile);
+    result = mergeExistingTranslations(result, outputFile);
+
+    console.log(
+      `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
+        result
+      )}`
+    );
+
+    fs.writeFile(
+      outputFile,
+      prettier.format(JSON.stringify(result), { parser: "json" }),
+      (err) => {
+        if (err) {
+          console.error(err);
+          return;
         }
-      );
-    })();
+        console.log("File written successfully: ", outputFile);
+      }
+    );
   });
 });
