@@ -10,8 +10,13 @@ const settings = {
       ["cat meows", "cat"],
     ],
     toTranslate: [
-      [[], "app"],
-      [[], "Instructor"],
+      [["Confirm", "Shop", "Hamster Dance"], "app"],
+      [
+        [
+          "If you look hard enough, you'll find our mascot- Hambone the Hamster King!",
+        ],
+        "Instructor",
+      ],
     ],
   },
 };

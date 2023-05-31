@@ -4,6 +4,7 @@ import prettier from "prettier";
 import { Configuration, OpenAIApi } from "openai";
 import { encode } from "gpt-3-encoder";
 import fs from "fs";
+import chalk from "chalk";
 
 dotenv.config();
 
@@ -13,12 +14,11 @@ import(process.env.TRANSLATEGPT_JS_PATH)
       default: { settings },
     } = module;
 
-    // Now you can use the imported values
-    console.log(settings);
+    console.log(chalk.cyan("Settings: "), settings);
     init(settings);
   })
   .catch((error) => {
-    console.error("Error importing module:", error);
+    console.error(chalk.red("Error importing module:"), error);
   });
 
 const configuration = new Configuration({
@@ -31,7 +31,9 @@ const isArray = (a) => !!a && a.constructor === Array;
 
 const formatTranslateStrings = (translateStrings) => {
   if (!isObject(translateStrings) && !isArray(translateStrings)) {
-    console.log("translateStrings must either be an object or an array.");
+    console.log(
+      chalk.yellow("translateStrings must either be an object or an array.")
+    );
     return null;
   }
 
@@ -86,13 +88,15 @@ const sendQuery = async (query, language) => {
       temperature: 1.0,
     });
     const response = completion.data.choices[0].message.content;
-    console.log("Query response: ", response);
+    console.log(chalk.blue("Query response: "), response);
     return response;
   } catch (error) {
     if (error.response) {
-      console.error(error.response.status, error.response.data);
+      console.error(chalk.red(error.response.status, error.response.data));
     } else {
-      console.error(`Error with OpenAI API request: ${error.message}`);
+      console.error(
+        chalk.red(`Error with OpenAI API request: ${error.message}`)
+      );
     }
   }
 };
@@ -105,9 +109,11 @@ const generateAppliedResponse = (response, buildingOutput) => {
     const lastIndex = response.lastIndexOf("}");
     const firstIndex = response.lastIndexOf("{", lastIndex);
     parsedResponse = JSON.parse(response.slice(firstIndex, lastIndex + 1));
-    console.log("Parsed response: ", parsedResponse);
+    console.log(chalk.blue("Parsed response: "), parsedResponse);
   } catch {
-    console.log(`Response parse error, retrying. Response: ${response}`);
+    console.log(
+      chalk.yellow(`Response parse error, retrying. Response: ${response}`)
+    );
     return buildingOutput;
   }
 
@@ -125,18 +131,20 @@ const addMissingSourceTranslations = (
   outputJSON,
   sourceLanguage
 ) => {
-  console.log(`Adding translations from: ${sourceLanguage}`);
+  console.log(chalk.cyan(`Adding translations from: ${sourceLanguage}`));
   const merged = { ...translateStrings };
 
   if (sourceJSON && outputJSON) {
-    console.log("JSON from source and output found, merging.");
+    console.log(chalk.cyan("JSON from source and output found, merging."));
     Object.keys(sourceJSON).forEach((key) => {
       if (!outputJSON[key]) {
         merged[key] = "";
       }
     });
   } else if (sourceJSON && !outputJSON) {
-    console.log("Output file/JSON not found, adding all source translations.");
+    console.log(
+      chalk.cyan("Output file/JSON not found, adding all source translations.")
+    );
     Object.keys(sourceJSON).forEach((key) => {
       merged[key] = "";
     });
@@ -147,30 +155,32 @@ const addMissingSourceTranslations = (
 
 async function translate(toTranslate, language) {
   let buildingOutput = { ...toTranslate };
-  console.log("buildOut", buildingOutput);
+  console.log(chalk.green("buildOut"), buildingOutput);
   let isOutputBuilt = false;
 
   while (!isOutputBuilt) {
     const queries = buildQueries(buildingOutput);
-    console.log("Queries", queries);
+    console.log(chalk.green("Queries"), queries);
 
     if (queries.length === 0) {
-      console.log(`Finished queries`);
+      console.log(chalk.magenta(`Finished queries`));
       isOutputBuilt = true;
       return buildingOutput;
     }
 
     for (let query of queries) {
-      console.log("Translations are still being generated, please wait.");
+      console.log(
+        chalk.yellow("Translations are still being generated, please wait.")
+      );
       const queryResponse = await sendQuery(query, language);
-      console.log("Query response: ", queryResponse);
+      console.log(chalk.blue("Query response: "), queryResponse);
 
       buildingOutput = generateAppliedResponse(queryResponse, buildingOutput);
-      console.log("Building output", buildingOutput);
+      console.log(chalk.green("Building output"), buildingOutput);
     }
   }
 
-  console.log("build output", buildingOutput);
+  console.log(chalk.green("build output"), buildingOutput);
   return buildingOutput;
 }
 
@@ -181,74 +191,84 @@ const mergeExistingTranslations = (result, outputFile) => {
     try {
       const parsedExistingData = JSON.parse(existingJsonData);
       console.log(
-        "Destination file contains translations, merging with new translations."
+        chalk.cyan(
+          "Destination file contains translations, merging with new translations."
+        )
       );
       const mergedTranslations = { ...parsedExistingData, ...result };
-      console.log("Merged translations: ", mergedTranslations);
+      console.log(chalk.blue("Merged translations: "), mergedTranslations);
       return mergedTranslations;
     } catch {
-      console.log("Destination file currently empty.");
+      console.log(chalk.cyan("Destination file currently empty."));
       return result;
     }
   } else {
-    console.log("The file does not exist.");
+    console.log(chalk.cyan("The file does not exist."));
     return result;
   }
 };
 
 const getFileJSON = (filePath) => {
   if (fs.existsSync(filePath)) {
-    console.log(`File found: ${filePath}`);
+    console.log(chalk.cyan(`File found: ${filePath}`));
     try {
       const existingJsonData = fs.readFileSync(filePath, "utf-8");
       const parsedExistingData = JSON.parse(existingJsonData);
-      console.log(`File JSON parsed successfully.`);
+      console.log(chalk.cyan(`File JSON parsed successfully.`));
       return parsedExistingData;
     } catch {
-      console.log(`Could not parse file JSON`);
+      console.log(chalk.yellow(`Could not parse file JSON`));
     }
   } else {
-    console.log("The file does not exist.");
+    console.log(chalk.cyan("The file does not exist."));
     return null;
   }
 };
 
 if (!configuration.apiKey) {
   console.log(
-    "OpenAI API key not configured, please follow instructions in README.md"
+    chalk.red(
+      "OpenAI API key not configured, please follow instructions in README.md"
+    )
   );
   process.exit(1);
 }
 
 const init = (config) => {
   config.toTranslate.forEach(([translateStrings, translateNamespace]) => {
-    console.log("toTrans", translateStrings);
+    console.log(chalk.yellow("toTrans"), translateStrings);
     config.languages.forEach(
       async ([languageDescription, languageAbbreviation]) => {
         const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${translateNamespace}`;
         if (!fs.existsSync(outputDirectory)) {
           fs.mkdirSync(outputDirectory);
-          console.log("Folder created: ", outputDirectory);
+          console.log(chalk.cyan("Folder created: "), outputDirectory);
         }
-        console.log(`Output directory set to: `, outputDirectory);
+        console.log(chalk.cyan(`Output directory set to: `), outputDirectory);
 
         const sourceLanguageFile = `${outputDirectory}/${translateNamespace}.${config.sourceLanguage.replace(
           /\s/g,
           "_"
         )}.json`;
-        console.log(`Source language file set to: `, sourceLanguageFile);
+        console.log(
+          chalk.cyan(`Source language file set to: `),
+          sourceLanguageFile
+        );
         const sourceJSON = getFileJSON(sourceLanguageFile);
-        console.log(`Source JSON set to: `, sourceJSON);
+        console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
 
         const outputFile = `${outputDirectory}/${translateNamespace}.${languageAbbreviation.replace(
           /\s/g,
           "_"
         )}.json`;
-        console.log(`Output file set to: `, outputFile);
+        console.log(chalk.cyan(`Output file set to: `), outputFile);
         const outputJSON = getFileJSON(outputFile);
-        console.log(`Output JSON set to: `, outputJSON);
+        console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
 
-        console.log("translateStrings before data parsing: ", translateStrings);
+        console.log(
+          chalk.yellow("translateStrings before data parsing: "),
+          translateStrings
+        );
 
         let formattedTranslateStrings =
           formatTranslateStrings(translateStrings);
@@ -263,7 +283,7 @@ const init = (config) => {
         }
 
         console.log(
-          "translateStrings after data parsing: ",
+          chalk.yellow("translateStrings after data parsing: "),
           formattedTranslateStrings
         );
 
@@ -271,14 +291,16 @@ const init = (config) => {
           formattedTranslateStrings,
           languageDescription
         );
-        console.log("result", result);
+        console.log(chalk.green("result"), result);
 
         result = mergeExistingTranslations(result, outputFile);
 
         console.log(
-          `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
-            result
-          )}`
+          chalk.cyan(
+            `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
+              result
+            )}`
+          )
         );
 
         fs.writeFile(
@@ -289,7 +311,7 @@ const init = (config) => {
               console.error(err);
               return;
             }
-            console.log("File written successfully: ", outputFile);
+            console.log(chalk.cyan("File written successfully: "), outputFile);
           }
         );
       }
