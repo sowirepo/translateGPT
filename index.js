@@ -1,15 +1,25 @@
 #!/usr/bin/env node
-require("dotenv").config();
-const prettier = require("prettier");
-const { Configuration, OpenAIApi } = require("openai");
-const { encode } = require("gpt-3-encoder");
-const fs = require("fs");
-const {
-  sourceLanguage,
-  useSourceTranslations,
-  languages,
-  toTranslate,
-} = require(process.env.TRANSLATEGPT_JS_PATH);
+import dotenv from "dotenv";
+import prettier from "prettier";
+import { Configuration, OpenAIApi } from "openai";
+import { encode } from "gpt-3-encoder";
+import fs from "fs";
+
+dotenv.config();
+
+import(process.env.TRANSLATEGPT_JS_PATH)
+  .then((module) => {
+    const {
+      default: { settings },
+    } = module;
+
+    // Now you can use the imported values
+    console.log(settings);
+    init(settings);
+  })
+  .catch((error) => {
+    console.error("Error importing module:", error);
+  });
 
 const configuration = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
@@ -112,9 +122,10 @@ const generateAppliedResponse = (response, buildingOutput) => {
 const addMissingSourceTranslations = (
   translateStrings,
   sourceJSON,
-  outputJSON
+  outputJSON,
+  sourceLanguage
 ) => {
-  console.log(`Adding translations from: ${sourceLanguage[1]}`);
+  console.log(`Adding translations from: ${sourceLanguage}`);
   const merged = { ...translateStrings };
 
   if (sourceJSON && outputJSON) {
@@ -206,76 +217,82 @@ if (!configuration.apiKey) {
   console.log(
     "OpenAI API key not configured, please follow instructions in README.md"
   );
-  return;
+  process.exit(1);
 }
 
-toTranslate.forEach(([translateStrings, translateNamespace]) => {
-  console.log("toTrans", translateStrings);
-  languages.forEach(async ([languageDescription, languageAbbreviation]) => {
-    const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${translateNamespace}`;
-    if (!fs.existsSync(outputDirectory)) {
-      fs.mkdirSync(outputDirectory);
-      console.log("Folder created: ", outputDirectory);
-    }
-    console.log(`Output directory set to: `, outputDirectory);
-
-    const sourceLanguageFile = `${outputDirectory}/${translateNamespace}.${sourceLanguage.replace(
-      /\s/g,
-      "_"
-    )}.json`;
-    console.log(`Source language file set to: `, sourceLanguageFile);
-    const sourceJSON = getFileJSON(sourceLanguageFile);
-    console.log(`Source JSON set to: `, sourceJSON);
-
-    const outputFile = `${outputDirectory}/${translateNamespace}.${languageAbbreviation.replace(
-      /\s/g,
-      "_"
-    )}.json`;
-    console.log(`Output file set to: `, outputFile);
-    const outputJSON = getFileJSON(outputFile);
-    console.log(`Output JSON set to: `, outputJSON);
-
-    console.log("translateStrings before data parsing: ", translateStrings);
-
-    let formattedTranslateStrings = formatTranslateStrings(translateStrings);
-
-    if (useSourceTranslations) {
-      formattedTranslateStrings = addMissingSourceTranslations(
-        formattedTranslateStrings,
-        sourceJSON,
-        outputJSON
-      );
-    }
-
-    console.log(
-      "translateStrings after data parsing: ",
-      formattedTranslateStrings
-    );
-
-    let result = await translate(
-      formattedTranslateStrings,
-      languageDescription
-    );
-    console.log("result", result);
-
-    result = mergeExistingTranslations(result, outputFile);
-
-    console.log(
-      `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
-        result
-      )}`
-    );
-
-    fs.writeFile(
-      outputFile,
-      prettier.format(JSON.stringify(result), { parser: "json" }),
-      (err) => {
-        if (err) {
-          console.error(err);
-          return;
+const init = (config) => {
+  config.toTranslate.forEach(([translateStrings, translateNamespace]) => {
+    console.log("toTrans", translateStrings);
+    config.languages.forEach(
+      async ([languageDescription, languageAbbreviation]) => {
+        const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${translateNamespace}`;
+        if (!fs.existsSync(outputDirectory)) {
+          fs.mkdirSync(outputDirectory);
+          console.log("Folder created: ", outputDirectory);
         }
-        console.log("File written successfully: ", outputFile);
+        console.log(`Output directory set to: `, outputDirectory);
+
+        const sourceLanguageFile = `${outputDirectory}/${translateNamespace}.${config.sourceLanguage.replace(
+          /\s/g,
+          "_"
+        )}.json`;
+        console.log(`Source language file set to: `, sourceLanguageFile);
+        const sourceJSON = getFileJSON(sourceLanguageFile);
+        console.log(`Source JSON set to: `, sourceJSON);
+
+        const outputFile = `${outputDirectory}/${translateNamespace}.${languageAbbreviation.replace(
+          /\s/g,
+          "_"
+        )}.json`;
+        console.log(`Output file set to: `, outputFile);
+        const outputJSON = getFileJSON(outputFile);
+        console.log(`Output JSON set to: `, outputJSON);
+
+        console.log("translateStrings before data parsing: ", translateStrings);
+
+        let formattedTranslateStrings =
+          formatTranslateStrings(translateStrings);
+
+        if (config.useSourceTranslations) {
+          formattedTranslateStrings = addMissingSourceTranslations(
+            formattedTranslateStrings,
+            sourceJSON,
+            outputJSON,
+            config.sourceLanguage
+          );
+        }
+
+        console.log(
+          "translateStrings after data parsing: ",
+          formattedTranslateStrings
+        );
+
+        let result = await translate(
+          formattedTranslateStrings,
+          languageDescription
+        );
+        console.log("result", result);
+
+        result = mergeExistingTranslations(result, outputFile);
+
+        console.log(
+          `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
+            result
+          )}`
+        );
+
+        fs.writeFile(
+          outputFile,
+          prettier.format(JSON.stringify(result), { parser: "json" }),
+          (err) => {
+            if (err) {
+              console.error(err);
+              return;
+            }
+            console.log("File written successfully: ", outputFile);
+          }
+        );
       }
     );
   });
-});
+};
