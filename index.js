@@ -76,7 +76,7 @@ const buildQueries = (formattedTranslateStrings) => {
 const generatePrompt = (query, language) => [
   {
     role: "user",
-    content: `Please return this JSON object with the empty value strings filled in with the translation of the keys into ${language} JSON ONLY. NO DISCUSSION. DON'T ALTER THE KEYS. ALWAYS FILL IN THE EMPTY STRINGS WITH A TRANSLATION:  ${query} `,
+    content: `This JSON is used in a platform implementing i18n, return it with the empty value strings filled in with the translation of the keys into ${language}. Values in {{}} are used for interpolation, so they should be placed correctly but anything inside {{}} should be not be translated. JSON ONLY. NO DISCUSSION. DON'T ALTER THE KEYS. ALWAYS FILL IN THE EMPTY STRINGS WITH A TRANSLATION:  ${query} `,
   },
 ];
 
@@ -92,7 +92,9 @@ const sendQuery = async (query, language) => {
     return response;
   } catch (error) {
     if (error.response) {
-      console.error(chalk.red(error.response.status, error.response.data));
+      console.error(
+        chalk.red(error.response.status, JSON.stringify(error.response.data))
+      );
     } else {
       console.error(
         chalk.red(`Error with OpenAI API request: ${error.message}`)
@@ -106,8 +108,8 @@ const generateAppliedResponse = (response, buildingOutput) => {
   let parsedResponse;
 
   try {
+    const firstIndex = response.indexOf("{");
     const lastIndex = response.lastIndexOf("}");
-    const firstIndex = response.lastIndexOf("{", lastIndex);
     parsedResponse = JSON.parse(response.slice(firstIndex, lastIndex + 1));
     console.log(chalk.blue("Parsed response: "), parsedResponse);
   } catch {
