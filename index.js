@@ -203,14 +203,15 @@ const isValidInterpolations = (query, queryResponse) => {
   const validInterpolations = getInterpolations(query);
   const responseInterpolations = getInterpolations(queryResponse);
 
-  let isValid = true;
-  Object.keys(responseInterpolations).forEach((key) => {
-    if (!validInterpolations[key]) {
-      isValid = false;
-    }
-  });
+  const validKeys = Object.keys(validInterpolations);
 
-  return isValid;
+  for (const key of validKeys) {
+    if (!responseInterpolations[key]) {
+      return false;
+    }
+  }
+
+  return validKeys.length === Object.keys(responseInterpolations).length;
 };
 
 const mergeExistingTranslations = (result, outputFile) => {
