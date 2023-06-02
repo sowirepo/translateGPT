@@ -177,7 +177,10 @@ async function translate(toTranslate, language) {
       const queryResponse = await sendQuery(query, language);
       console.log(chalk.blue("Query response: "), queryResponse);
 
-      buildingOutput = generateAppliedResponse(queryResponse, buildingOutput);
+      if (isValidInterpolations(query, queryResponse)) {
+        buildingOutput = generateAppliedResponse(queryResponse, buildingOutput);
+      }
+
       console.log(chalk.green("Building output"), buildingOutput);
     }
   }
@@ -185,6 +188,30 @@ async function translate(toTranslate, language) {
   console.log(chalk.green("build output"), buildingOutput);
   return buildingOutput;
 }
+
+const getInterpolations = (str) => {
+  const regex = /{{([^}]+)}}/g;
+
+  return (str.match(regex) || []).reduce((obj, match) => {
+    const key = match.replace(/{{|}}/g, "");
+    obj[key] = true;
+    return obj;
+  }, {});
+};
+
+const isValidInterpolations = (query, queryResponse) => {
+  const validInterpolations = getInterpolations(query);
+  const responseInterpolations = getInterpolations(queryResponse);
+
+  let isValid = true;
+  Object.keys(responseInterpolations).forEach((key) => {
+    if (!validInterpolations[key]) {
+      isValid = false;
+    }
+  });
+
+  return isValid;
+};
 
 const mergeExistingTranslations = (result, outputFile) => {
   if (fs.existsSync(outputFile)) {
