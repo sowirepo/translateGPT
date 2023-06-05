@@ -176,26 +176,38 @@ async function translate(toTranslate, language) {
 const getInterpolations = (str) => {
   const regex = /{{([^}]+)}}/g;
 
-  return (str.match(regex) || []).reduce((obj, match) => {
-    const key = match.replace(/{{|}}/g, "");
-    obj[key] = true;
-    return obj;
-  }, {});
+  let interpolations;
+  try {
+    interpolations = (str.match(regex) || []).reduce((obj, match) => {
+      const key = match.replace(/{{|}}/g, "");
+      obj[key] = true;
+      return obj;
+    }, {});
+  } catch {
+    interpolations = null;
+  }
+
+  return interpolations;
 };
 
 const isValidInterpolations = (query, queryResponse) => {
   const validInterpolations = getInterpolations(query);
   const responseInterpolations = getInterpolations(queryResponse);
 
-  const validKeys = Object.keys(validInterpolations);
+  if (validInterpolations === null || responseInterpolations === null) {
+    console.log(chalk.red("Error interpolating query."));
+    return false;
+  } else {
+    const validKeys = Object.keys(validInterpolations);
 
-  for (const key of validKeys) {
-    if (!responseInterpolations[key]) {
-      return false;
+    for (const key of validKeys) {
+      if (!responseInterpolations[key]) {
+        return false;
+      }
     }
-  }
 
-  return validKeys.length === Object.keys(responseInterpolations).length;
+    return validKeys.length === Object.keys(responseInterpolations).length;
+  }
 };
 
 const mergeExistingTranslations = (result, outputFile) => {
@@ -248,74 +260,101 @@ if (!configuration.apiKey) {
   process.exit(1);
 }
 
-const init = (config) => {
-  config.namespaces.forEach((namespace) => {
-    const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${namespace}`;
-    if (!fs.existsSync(outputDirectory)) {
-      fs.mkdirSync(outputDirectory);
-      console.log(chalk.cyan("Folder created: "), outputDirectory);
-    }
-    console.log(chalk.cyan(`Output directory set to: `), outputDirectory);
-    config.languages.forEach(async (language) => {
-      const sourceLanguageAbbreviation =
-        language.sourceLanguage ?? config.sourceLanguage;
-      const sourceLanguageFile = `${outputDirectory}/${namespace}.${sourceLanguageAbbreviation.replace(
-        /\s/g,
-        "_"
-      )}.json`;
-      console.log(
-        chalk.cyan(`Source language file set to: `),
-        sourceLanguageFile
-      );
-      const sourceJSON = getFileJSON(sourceLanguageFile);
-      console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
+const init = async (config) => {
+  let translationsRemaining = true;
+  while (translationsRemaining) {
+    translationsRemaining = false;
+    for (const namespace of config.namespaces) {
+      const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${namespace}`;
+      if (!fs.existsSync(outputDirectory)) {
+        fs.mkdirSync(outputDirectory);
+        console.log(chalk.cyan("Folder created: "), outputDirectory);
+      }
+      console.log(chalk.cyan(`Output directory set to: `), outputDirectory);
+      for (const language of config.languages) {
+        const sourceLanguageAbbreviation =
+          language.sourceLanguage ?? config.sourceLanguage;
+        const sourceLanguageFile = `${outputDirectory}/${namespace}.${sourceLanguageAbbreviation.replace(
+          /\s/g,
+          "_"
+        )}.json`;
+        console.log(
+          chalk.cyan(`Source language file set to: `),
+          sourceLanguageFile
+        );
+        const sourceJSON = getFileJSON(sourceLanguageFile);
+        console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
 
-      const outputFile = `${outputDirectory}/${namespace}.${language.abbreviation.replace(
-        /\s/g,
-        "_"
-      )}.json`;
-      console.log(chalk.cyan(`Output file set to: `), outputFile);
-      const outputJSON = getFileJSON(outputFile);
-      console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
+        const outputFile = `${outputDirectory}/${namespace}.${language.abbreviation.replace(
+          /\s/g,
+          "_"
+        )}.json`;
+        console.log(chalk.cyan(`Output file set to: `), outputFile);
+        const outputJSON = getFileJSON(outputFile);
+        console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
 
-      const formattedTranslateStrings = addMissingSourceTranslations(
-        sourceJSON,
-        outputJSON,
-        language.sourceLanguage ?? config.sourceLanguage
-      );
+        const formattedTranslateStrings = addMissingSourceTranslations(
+          sourceJSON,
+          outputJSON,
+          language.sourceLanguage ?? config.sourceLanguage
+        );
 
-      console.log(
-        chalk.yellow("translateStrings after data parsing: "),
-        formattedTranslateStrings
-      );
+        console.log(
+          chalk.yellow("translateStrings after data parsing: "),
+          formattedTranslateStrings
+        );
 
-      let result = await translate(
-        formattedTranslateStrings,
-        language.language
-      );
-      console.log(chalk.green("result"), result);
+        let result = await translate(
+          formattedTranslateStrings,
+          language.language
+        );
+        console.log(chalk.green("result"), result);
 
-      result = mergeExistingTranslations(result, outputFile);
+        result = mergeExistingTranslations(result, outputFile);
 
-      console.log(
-        chalk.cyan(
-          `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
-            result
-          )}`
-        )
-      );
+        if (JSON.stringify(outputJSON) !== JSON.stringify(result)) {
+          console.log(
+            chalk.cyan(
+              `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
+                result
+              )}`
+            )
+          );
 
-      fs.writeFile(
-        outputFile,
-        prettier.format(JSON.stringify(result), { parser: "json" }),
-        (err) => {
-          if (err) {
-            console.error(err);
-            return;
-          }
-          console.log(chalk.cyan("File written successfully: "), outputFile);
+          await new Promise((resolve, reject) => {
+            fs.writeFile(
+              outputFile,
+              prettier.format(JSON.stringify(result), { parser: "json" }),
+              (err) => {
+                if (err) {
+                  console.error(err);
+                  reject(err);
+                } else {
+                  console.log(
+                    chalk.cyan("File written successfully: "),
+                    outputFile
+                  );
+                  resolve();
+                }
+              }
+            );
+          });
+
+          translationsRemaining = true;
+          console.log(
+            chalk.cyan(
+              "Checking if new translation sources need to be generated."
+            )
+          );
+        } else {
+          console.log(
+            chalk.cyan(
+              "File contents are the same as output, skipping file write for: "
+            ),
+            outputFile
+          );
         }
-      );
-    });
-  });
+      }
+    }
+  }
 };
