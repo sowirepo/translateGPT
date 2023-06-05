@@ -10,12 +10,10 @@ dotenv.config();
 
 import(process.env.TRANSLATEGPT_JS_PATH)
   .then((module) => {
-    const {
-      default: { settings },
-    } = module;
+    const { config: config } = module;
 
-    console.log(chalk.cyan("Settings: "), settings);
-    init(settings);
+    console.log(chalk.cyan("config: "), JSON.stringify(config));
+    init(config);
   })
   .catch((error) => {
     console.error(chalk.red("Error importing module:"), error);
@@ -32,7 +30,7 @@ const isArray = (a) => !!a && a.constructor === Array;
 const formatTranslateStrings = (translateStrings) => {
   if (!isObject(translateStrings) && !isArray(translateStrings)) {
     console.log(
-      chalk.yellow("translateStrings must either be an object or an array.")
+      chalk.red("translateStrings must either be an object or an array.")
     );
     return null;
   }
@@ -73,12 +71,18 @@ const buildQueries = (formattedTranslateStrings) => {
   return queries;
 };
 
-const generatePrompt = (query, language) => [
-  {
-    role: "user",
-    content: `This JSON is used in a platform implementing i18n, return it with the empty value strings filled in with the translation of the keys into ${language}. Values in {{}} are used for interpolation, so they should be placed correctly but anything inside {{}} should be not be translated. JSON ONLY. NO DISCUSSION. DON'T ALTER THE KEYS. ALWAYS FILL IN THE EMPTY STRINGS WITH A TRANSLATION:  ${query} `,
-  },
-];
+const generatePrompt = (query, language) => {
+  const prompt = [
+    {
+      role: "user",
+      content: `This JSON is used in a platform implementing i18n, return it with the empty value strings filled in with the translation of the keys into ${language}. Values in {{}} are used for interpolation, so they should be placed correctly but anything inside {{}} should be not be translated. JSON ONLY. NO DISCUSSION. DON'T ALTER THE KEYS. ALWAYS FILL IN THE EMPTY STRINGS WITH A TRANSLATION:  ${query} `,
+    },
+  ];
+
+  console.log(chalk.blue("Prompt: "), prompt);
+
+  return prompt;
+};
 
 const sendQuery = async (query, language) => {
   try {
@@ -265,86 +269,81 @@ if (!configuration.apiKey) {
 }
 
 const init = (config) => {
-  config.toTranslate.forEach(([translateStrings, translateNamespace]) => {
-    console.log(chalk.yellow("toTrans"), translateStrings);
-    config.languages.forEach(
-      async ([languageDescription, languageAbbreviation]) => {
-        const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${translateNamespace}`;
-        if (!fs.existsSync(outputDirectory)) {
-          fs.mkdirSync(outputDirectory);
-          console.log(chalk.cyan("Folder created: "), outputDirectory);
-        }
-        console.log(chalk.cyan(`Output directory set to: `), outputDirectory);
+  config.toTranslate.forEach((toTranslate) => {
+    console.log(chalk.yellow("translateStrings"), toTranslate.translateStrings);
 
-        const sourceLanguageFile = `${outputDirectory}/${translateNamespace}.${config.sourceLanguage.replace(
-          /\s/g,
-          "_"
-        )}.json`;
-        console.log(
-          chalk.cyan(`Source language file set to: `),
-          sourceLanguageFile
-        );
-        const sourceJSON = getFileJSON(sourceLanguageFile);
-        console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
+    const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${toTranslate.namespace}`;
+    if (!fs.existsSync(outputDirectory)) {
+      fs.mkdirSync(outputDirectory);
+      console.log(chalk.cyan("Folder created: "), outputDirectory);
+    }
+    console.log(chalk.cyan(`Output directory set to: `), outputDirectory);
+    config.languages.forEach(async (language) => {
+      const sourceLanguageFile = `${outputDirectory}/${
+        toTranslate.namespace
+      }.${language.language.replace(/\s/g, "_")}.json`;
+      console.log(
+        chalk.cyan(`Source language file set to: `),
+        sourceLanguageFile
+      );
+      const sourceJSON = getFileJSON(sourceLanguageFile);
+      console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
 
-        const outputFile = `${outputDirectory}/${translateNamespace}.${languageAbbreviation.replace(
-          /\s/g,
-          "_"
-        )}.json`;
-        console.log(chalk.cyan(`Output file set to: `), outputFile);
-        const outputJSON = getFileJSON(outputFile);
-        console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
+      const outputFile = `${outputDirectory}/${
+        toTranslate.namespace
+      }.${language.abbreviation.replace(/\s/g, "_")}.json`;
+      console.log(chalk.cyan(`Output file set to: `), outputFile);
+      const outputJSON = getFileJSON(outputFile);
+      console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
 
-        console.log(
-          chalk.yellow("translateStrings before data parsing: "),
-          translateStrings
-        );
+      console.log(
+        chalk.yellow("translateStrings before data parsing: "),
+        toTranslate.translateStrings
+      );
 
-        let formattedTranslateStrings =
-          formatTranslateStrings(translateStrings);
+      let formattedTranslateStrings = formatTranslateStrings(
+        toTranslate.translateStrings
+      );
 
-        if (config.useSourceTranslations) {
-          formattedTranslateStrings = addMissingSourceTranslations(
-            formattedTranslateStrings,
-            sourceJSON,
-            outputJSON,
-            config.sourceLanguage
-          );
-        }
+      formattedTranslateStrings = addMissingSourceTranslations(
+        formattedTranslateStrings,
+        sourceJSON,
+        outputJSON,
+        language.sourceLanguage ?? config.sourceLanguage
+      );
 
-        console.log(
-          chalk.yellow("translateStrings after data parsing: "),
-          formattedTranslateStrings
-        );
+      console.log(
+        chalk.yellow("translateStrings after data parsing: "),
+        formattedTranslateStrings
+      );
 
-        let result = await translate(
-          formattedTranslateStrings,
-          languageDescription
-        );
-        console.log(chalk.green("result"), result);
+      let result = await translate(
+        formattedTranslateStrings,
+        language.language
+      );
+      console.log(chalk.green("result"), result);
 
-        result = mergeExistingTranslations(result, outputFile);
+      result = mergeExistingTranslations(result, outputFile);
 
-        console.log(
-          chalk.cyan(
-            `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
-              result
-            )}`
-          )
-        );
+      console.log(
+        chalk.cyan(
+          `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
+            result
+          )}`
+        )
+      );
 
-        fs.writeFile(
-          outputFile,
-          prettier.format(JSON.stringify(result), { parser: "json" }),
-          (err) => {
-            if (err) {
-              console.error(err);
-              return;
-            }
-            console.log(chalk.cyan("File written successfully: "), outputFile);
+      fs.writeFile(
+        outputFile,
+        prettier.format(JSON.stringify(result), { parser: "json" }),
+        (err) => {
+          if (err) {
+            console.error(err);
+            return;
           }
-        );
-      }
-    );
+          console.log(chalk.cyan("File written successfully: "), outputFile);
+        }
+      );
+    });
   });
 };

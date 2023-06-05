@@ -1,34 +1,46 @@
 // Example of how to structure your translations file.
 
-const settings = {
-  settings: {
-    sourceLanguage: "nl",
-    useSourceTranslations: true,
-    languages: [
-      ["japanese", "jp"],
-      ["dutch spoken informally specifically using je instead of u", "nl"],
-      ["cat meows", "cat"],
-      [`german using the informal "duzen"`, "de"],
-    ],
-    toTranslate: [
-      [
-        [
-          "Confirm",
-          "Shop",
-          "Hamster Dance",
-          "The hamsters are currently {{hamsterStatus}}, if you watch for {{time}}, maybe they'll do something else?",
-        ],
-        "app",
+export const config = {
+  sourceLanguage: "en",
+  languages: [
+    {
+      language: "dutch spoken informally specifically using je instead of u",
+      abbreviation: "nl",
+    },
+    {
+      language: `german using the informal "duzen"`,
+      abbreviation: "de",
+      sourceLanguage: "nl",
+    },
+    {
+      language: "japanese",
+      abbreviation: "jp",
+    },
+    {
+      language: "cat meows",
+      abbreviation: "cat",
+    },
+    {
+      language: "english with a hamster accent",
+      abbreviation: "hamster",
+    },
+  ],
+  toTranslate: [
+    {
+      translateStrings: [
+        "Confirm",
+        "Shop",
+        "Hamster Dance",
+        "The hamsters are currently {{hamsterStatus}}, if you watch for {{time}}, maybe they'll do something else?",
       ],
-      [
-        [
-          "If you look hard enough, you'll find our mascot- Hambone the Hamster King!",
-          "My favorite animal is a {{animal}}.",
-        ],
-        "shop",
+      namespace: "app",
+    },
+    {
+      translateStrings: [
+        "If you look hard enough, you'll find our mascot- Hambone the Hamster King!",
+        "My favorite animal is a {{animal}}.",
       ],
-    ],
-  },
+      namespace: "shop",
+    },
+  ],
 };
-
-export default settings;
