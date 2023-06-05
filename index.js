@@ -24,25 +24,6 @@ const configuration = new Configuration({
 });
 const openai = new OpenAIApi(configuration);
 
-const isObject = (a) => !!a && a.constructor === Object;
-const isArray = (a) => !!a && a.constructor === Array;
-
-const formatTranslateStrings = (translateStrings) => {
-  if (!isObject(translateStrings) && !isArray(translateStrings)) {
-    console.log(
-      chalk.red("translateStrings must either be an object or an array.")
-    );
-    return null;
-  }
-
-  return Array.isArray(translateStrings)
-    ? translateStrings.reduce((formattedStrings, key) => {
-        formattedStrings[key] = "";
-        return formattedStrings;
-      }, {})
-    : Object.fromEntries(Object.keys(translateStrings).map((key) => [key, ""]));
-};
-
 const buildQueries = (formattedTranslateStrings) => {
   const tokenLimit = 500;
   const queries = [];
@@ -132,13 +113,12 @@ const generateAppliedResponse = (response, buildingOutput) => {
 };
 
 const addMissingSourceTranslations = (
-  translateStrings,
   sourceJSON,
   outputJSON,
   sourceLanguage
 ) => {
   console.log(chalk.cyan(`Adding translations from: ${sourceLanguage}`));
-  const merged = { ...translateStrings };
+  const merged = {};
 
   if (sourceJSON && outputJSON) {
     console.log(chalk.cyan("JSON from source and output found, merging."));
@@ -269,19 +249,20 @@ if (!configuration.apiKey) {
 }
 
 const init = (config) => {
-  config.toTranslate.forEach((toTranslate) => {
-    console.log(chalk.yellow("translateStrings"), toTranslate.translateStrings);
-
-    const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${toTranslate.namespace}`;
+  config.namespaces.forEach((namespace) => {
+    const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${namespace}`;
     if (!fs.existsSync(outputDirectory)) {
       fs.mkdirSync(outputDirectory);
       console.log(chalk.cyan("Folder created: "), outputDirectory);
     }
     console.log(chalk.cyan(`Output directory set to: `), outputDirectory);
     config.languages.forEach(async (language) => {
-      const sourceLanguageFile = `${outputDirectory}/${
-        toTranslate.namespace
-      }.${language.language.replace(/\s/g, "_")}.json`;
+      const sourceLanguageAbbreviation =
+        language.sourceLanguage ?? config.sourceLanguage;
+      const sourceLanguageFile = `${outputDirectory}/${namespace}.${sourceLanguageAbbreviation.replace(
+        /\s/g,
+        "_"
+      )}.json`;
       console.log(
         chalk.cyan(`Source language file set to: `),
         sourceLanguageFile
@@ -289,24 +270,24 @@ const init = (config) => {
       const sourceJSON = getFileJSON(sourceLanguageFile);
       console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
 
-      const outputFile = `${outputDirectory}/${
-        toTranslate.namespace
-      }.${language.abbreviation.replace(/\s/g, "_")}.json`;
+      const outputFile = `${outputDirectory}/${namespace}.${language.abbreviation.replace(
+        /\s/g,
+        "_"
+      )}.json`;
       console.log(chalk.cyan(`Output file set to: `), outputFile);
       const outputJSON = getFileJSON(outputFile);
       console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
 
-      console.log(
-        chalk.yellow("translateStrings before data parsing: "),
-        toTranslate.translateStrings
-      );
+      // console.log(
+      //   chalk.yellow("translateStrings before data parsing: "),
+      //   toTranslate.translateStrings
+      // );
+      //
+      // let formattedTranslateStrings = formatTranslateStrings(
+      //   toTranslate.translateStrings
+      // );
 
-      let formattedTranslateStrings = formatTranslateStrings(
-        toTranslate.translateStrings
-      );
-
-      formattedTranslateStrings = addMissingSourceTranslations(
-        formattedTranslateStrings,
+      const formattedTranslateStrings = addMissingSourceTranslations(
         sourceJSON,
         outputJSON,
         language.sourceLanguage ?? config.sourceLanguage

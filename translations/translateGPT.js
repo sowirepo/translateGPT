@@ -25,22 +25,5 @@ export const config = {
       abbreviation: "hamster",
     },
   ],
-  toTranslate: [
-    {
-      translateStrings: [
-        "Confirm",
-        "Shop",
-        "Hamster Dance",
-        "The hamsters are currently {{hamsterStatus}}, if you watch for {{time}}, maybe they'll do something else?",
-      ],
-      namespace: "app",
-    },
-    {
-      translateStrings: [
-        "If you look hard enough, you'll find our mascot- Hambone the Hamster King!",
-        "My favorite animal is a {{animal}}.",
-      ],
-      namespace: "shop",
-    },
-  ],
+  namespaces: ["app", "shop"],
 };
