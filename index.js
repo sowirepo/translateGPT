@@ -278,15 +278,6 @@ const init = (config) => {
       const outputJSON = getFileJSON(outputFile);
       console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
 
-      // console.log(
-      //   chalk.yellow("translateStrings before data parsing: "),
-      //   toTranslate.translateStrings
-      // );
-      //
-      // let formattedTranslateStrings = formatTranslateStrings(
-      //   toTranslate.translateStrings
-      // );
-
       const formattedTranslateStrings = addMissingSourceTranslations(
         sourceJSON,
         outputJSON,
