@@ -24,7 +24,7 @@ const configuration = new Configuration({
 });
 const openai = new OpenAIApi(configuration);
 
-const buildQueries = (formattedTranslateStrings) => {
+const buildQueries = (mappedTranslateStrings) => {
   const tokenLimit = 500;
   const queries = [];
   let buildingTokens = 0;
@@ -32,14 +32,14 @@ const buildQueries = (formattedTranslateStrings) => {
 
   const getTokenCount = (str) => encode(str).length;
 
-  Object.keys(formattedTranslateStrings).forEach((key) => {
+  Object.keys(mappedTranslateStrings).forEach((key) => {
     if (buildingTokens >= tokenLimit) {
       queries.push(JSON.stringify(buildingQuery));
       buildingTokens = 0;
       buildingQuery = {};
     }
 
-    if (formattedTranslateStrings[key] === "") {
+    if (mappedTranslateStrings[key] === "") {
       buildingQuery[key] = "";
       buildingTokens += getTokenCount(key) + 4;
     }
@@ -125,18 +125,18 @@ const addMissingSourceTranslations = (
 
   if (sourceJSON && outputJSON) {
     console.log(chalk.cyan("JSON from source and output found, merging."));
-    Object.keys(sourceJSON).forEach((key) => {
+    for (const [key, value] of Object.entries(sourceJSON)) {
       if (!outputJSON[key]) {
-        merged[key] = "";
+        merged[value] = "";
       }
-    });
+    }
   } else if (sourceJSON && !outputJSON) {
     console.log(
       chalk.cyan("Output file/JSON not found, adding all source translations.")
     );
-    Object.keys(sourceJSON).forEach((key) => {
-      merged[key] = "";
-    });
+    for (const [key, value] of Object.entries(sourceJSON)) {
+      merged[value] = "";
+    }
   }
 
   return merged;
@@ -260,100 +260,104 @@ if (!configuration.apiKey) {
   process.exit(1);
 }
 
+const remapSource = (source, output) => {
+  if (Object.keys(output).length > 0) {
+    console.log(chalk.yellow("Remapping source keys to output values."));
+    console.log(chalk.blue("Source", JSON.stringify(source)));
+    console.log(chalk.blue("Output", JSON.stringify(output)));
+    const remap = {};
+    for (const [key, value] of Object.entries(source)) {
+      remap[key] = output[value];
+    }
+    console.log(chalk.green("Remapped", JSON.stringify(remap)));
+    return remap;
+  } else {
+    console.log(chalk.yellow("No results received for remapping, skipping."));
+    return output;
+  }
+};
+
 const init = async (config) => {
-  let translationsRemaining = true;
-  while (translationsRemaining) {
-    translationsRemaining = false;
-    for (const namespace of config.namespaces) {
-      const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${namespace}`;
-      if (!fs.existsSync(outputDirectory)) {
-        fs.mkdirSync(outputDirectory);
-        console.log(chalk.cyan("Folder created: "), outputDirectory);
-      }
-      console.log(chalk.cyan(`Output directory set to: `), outputDirectory);
-      for (const language of config.languages) {
-        const sourceLanguageAbbreviation =
-          language.sourceLanguage ?? config.sourceLanguage;
-        const sourceLanguageFile = `${outputDirectory}/${namespace}.${sourceLanguageAbbreviation.replace(
-          /\s/g,
-          "_"
-        )}.json`;
+  for (const namespace of config.namespaces) {
+    const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${namespace}`;
+    if (!fs.existsSync(outputDirectory)) {
+      fs.mkdirSync(outputDirectory);
+      console.log(chalk.cyan("Folder created: "), outputDirectory);
+    }
+    console.log(chalk.cyan(`Output directory set to: `), outputDirectory);
+    for (const language of config.languages) {
+      const sourceLanguageAbbreviation =
+        language.sourceLanguage ?? config.sourceLanguage;
+      const sourceLanguageFile = `${outputDirectory}/${namespace}.${sourceLanguageAbbreviation.replace(
+        /\s/g,
+        "_"
+      )}.json`;
+      console.log(
+        chalk.cyan(`Source language file set to: `),
+        sourceLanguageFile
+      );
+      const sourceJSON = getFileJSON(sourceLanguageFile);
+      console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
+
+      const outputFile = `${outputDirectory}/${namespace}.${language.abbreviation.replace(
+        /\s/g,
+        "_"
+      )}.json`;
+      console.log(chalk.cyan(`Output file set to: `), outputFile);
+      const outputJSON = getFileJSON(outputFile);
+      console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
+
+      const mappedTranslateStrings = addMissingSourceTranslations(
+        sourceJSON,
+        outputJSON,
+        language.sourceLanguage ?? config.sourceLanguage
+      );
+
+      console.log(
+        chalk.yellow("translateStrings after data parsing: "),
+        mappedTranslateStrings
+      );
+
+      let result = await translate(mappedTranslateStrings, language.language);
+      console.log(chalk.green("result"), result);
+
+      result = remapSource(sourceJSON, result);
+      result = mergeExistingTranslations(result, outputFile);
+
+      if (JSON.stringify(outputJSON) !== JSON.stringify(result)) {
         console.log(
-          chalk.cyan(`Source language file set to: `),
-          sourceLanguageFile
-        );
-        const sourceJSON = getFileJSON(sourceLanguageFile);
-        console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
-
-        const outputFile = `${outputDirectory}/${namespace}.${language.abbreviation.replace(
-          /\s/g,
-          "_"
-        )}.json`;
-        console.log(chalk.cyan(`Output file set to: `), outputFile);
-        const outputJSON = getFileJSON(outputFile);
-        console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
-
-        const formattedTranslateStrings = addMissingSourceTranslations(
-          sourceJSON,
-          outputJSON,
-          language.sourceLanguage ?? config.sourceLanguage
+          chalk.cyan(
+            `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
+              result
+            )}`
+          )
         );
 
-        console.log(
-          chalk.yellow("translateStrings after data parsing: "),
-          formattedTranslateStrings
-        );
-
-        let result = await translate(
-          formattedTranslateStrings,
-          language.language
-        );
-        console.log(chalk.green("result"), result);
-
-        result = mergeExistingTranslations(result, outputFile);
-
-        if (JSON.stringify(outputJSON) !== JSON.stringify(result)) {
-          console.log(
-            chalk.cyan(
-              `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
-                result
-              )}`
-            )
-          );
-
-          await new Promise((resolve, reject) => {
-            fs.writeFile(
-              outputFile,
-              prettier.format(JSON.stringify(result), { parser: "json" }),
-              (err) => {
-                if (err) {
-                  console.error(err);
-                  reject(err);
-                } else {
-                  console.log(
-                    chalk.cyan("File written successfully: "),
-                    outputFile
-                  );
-                  resolve();
-                }
+        await new Promise((resolve, reject) => {
+          fs.writeFile(
+            outputFile,
+            prettier.format(JSON.stringify(result), { parser: "json" }),
+            (err) => {
+              if (err) {
+                console.error(err);
+                reject(err);
+              } else {
+                console.log(
+                  chalk.cyan("File written successfully: "),
+                  outputFile
+                );
+                resolve();
               }
-            );
-          });
-
-          translationsRemaining = true;
-          console.log(
-            chalk.cyan(
-              "Checking if new translation sources need to be generated."
-            )
+            }
           );
-        } else {
-          console.log(
-            chalk.cyan(
-              "File contents are the same as output, skipping file write for: "
-            ),
-            outputFile
-          );
-        }
+        });
+      } else {
+        console.log(
+          chalk.cyan(
+            "File contents are the same as output, skipping file write for: "
+          ),
+          outputFile
+        );
       }
     }
   }
