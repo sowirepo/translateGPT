@@ -218,8 +218,17 @@ const mergeExistingTranslations = (result, outputFile) => {
       const parsedExistingData = JSON.parse(existingJsonData);
       console.log(
         chalk.cyan(
-          "Destination file contains translations, merging with new translations."
+          "Destination file already exists, merging existing translations with new translations."
         )
+      );
+      console.log(
+        chalk.cyan(
+          "Existing translations: ",
+          JSON.stringify(JSON.stringify(Object.entries(parsedExistingData)))
+        )
+      );
+      console.log(
+        chalk.cyan("New translations: ", JSON.stringify(Object.entries(result)))
       );
       const mergedTranslations = { ...parsedExistingData, ...result };
       console.log(chalk.blue("Merged translations: "), mergedTranslations);
@@ -267,7 +276,9 @@ const remapSource = (source, output) => {
     console.log(chalk.blue("Output", JSON.stringify(output)));
     const remap = {};
     for (const [key, value] of Object.entries(source)) {
-      remap[key] = output[value];
+      if (output[value]) {
+        remap[key] = output[value];
+      }
     }
     console.log(chalk.green("Remapped", JSON.stringify(remap)));
     return remap;
