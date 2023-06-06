@@ -5,6 +5,6 @@
 # Do not commit this file! Ensure .env is in the .gitignore!
 OPENAI_API_KEY=123abcdefghijklmnop
 
-TRANSLATEGPT_JS_PATH="~/your_cool_project/translations/translateGPT.js"
+TRANSLATEGPT_JS_PATH="~/your_cool_project/translations/translateGPT.mjs"
 TRANSLATEGPT_OUTPUT_DIRECTORY="~/your_cool_project/translations"
 

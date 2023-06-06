@@ -20,15 +20,15 @@ Create a `.env` file in the root directory of your project and provide the follo
 
 ```
 OPENAI_API_KEY=<your_openai_api_key>
-TRANSLATEGPT_JS_PATH="<path_to_translateGPT.js>"
+TRANSLATEGPT_JS_PATH="<path_to_translateGPT.mjs>"
 TRANSLATEGPT_OUTPUT_DIRECTORY="<path_to_output_directory>"
 ```
 
 Note: Do not share your OpenAI API key with anyone and ensure that the `.env` file is added to the `.gitignore` file.
 
-### TranslateGPT.js
+### TranslateGPT.mjs
 
-Create a `translateGPT.js` file in the `translations` directory of your project and define the translation configuration using the `config` object. Here's an example:
+Create a `translateGPT.mjs` file in the `translations` directory of your project and define the translation configuration using the `config` object. Here's an example:
 
 ```javascript
 // Example of how to structure your translations file.
@@ -98,7 +98,7 @@ Once you have set up the configuration and environment variables, you can genera
 translategpt
 ```
 
-The package will generate translations for the specified languages and namespaces, based on the source languages defined in the `translateGPT.js` configuration file.
+The package will generate translations for the specified languages and namespaces, based on the source languages defined in the `translateGPT.mjs` configuration file.
 
 
 ## License

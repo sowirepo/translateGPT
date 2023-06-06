@@ -61,6 +61,9 @@ const generatePrompt = (query, language) => {
   ];
 
   console.log(chalk.blue("Prompt: "), prompt);
+  console.log(
+    chalk.yellow("Translations are still being generated, please wait.")
+  );
 
   return prompt;
 };
@@ -155,9 +158,6 @@ async function translate(toTranslate, language) {
     }
 
     for (let query of queries) {
-      console.log(
-        chalk.yellow("Translations are still being generated, please wait.")
-      );
       const queryResponse = await sendQuery(query, language);
       console.log(chalk.blue("Query response: "), queryResponse);
 
