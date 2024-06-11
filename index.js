@@ -7,7 +7,7 @@ import fs from "fs";
 import chalk from "chalk";
 
 dotenv.config();
-
+const isVerbose = false; // TODO: Make this an env variable too
 import(process.env.TRANSLATEGPT_JS_PATH)
   .then((module) => {
     const { config: config } = module;
@@ -115,19 +115,21 @@ const generateAppliedResponse = (response, buildingOutput) => {
   return appliedResponse;
 };
 
+// Returns a JSON object with the source translations that are missing in the output JSON
+// Only adds to returned result if the key from source does not exist in output
 const addMissingSourceTranslations = (
   sourceJSON,
   outputJSON,
   sourceLanguage
 ) => {
   console.log(chalk.cyan(`Adding translations from: ${sourceLanguage}`));
-  const merged = {};
+  const addedTranslations = {};
 
   if (sourceJSON && outputJSON) {
     console.log(chalk.cyan("JSON from source and output found, merging."));
     for (const [key, value] of Object.entries(sourceJSON)) {
       if (!outputJSON[key]) {
-        merged[value] = "";
+        addedTranslations[value] = "";
       }
     }
   } else if (sourceJSON && !outputJSON) {
@@ -135,15 +137,15 @@ const addMissingSourceTranslations = (
       chalk.cyan("Output file/JSON not found, adding all source translations.")
     );
     for (const [key, value] of Object.entries(sourceJSON)) {
-      merged[value] = "";
+      addedTranslations[value] = "";
     }
   }
 
-  return merged;
+  return addedTranslations;
 };
 
-async function translate(toTranslate, language) {
-  let buildingOutput = { ...toTranslate };
+async function translate(addedTranslations, language) {
+  let buildingOutput = { ...addedTranslations };
   console.log(chalk.green("buildOut"), buildingOutput);
   let isOutputBuilt = false;
 
@@ -245,11 +247,15 @@ const mergeExistingTranslations = (result, outputFile) => {
 
 const getFileJSON = (filePath) => {
   if (fs.existsSync(filePath)) {
-    console.log(chalk.cyan(`File found: ${filePath}`));
+    if (isVerbose) {
+      console.log(chalk.cyan(`File found: ${filePath}`));
+    }
     try {
       const existingJsonData = fs.readFileSync(filePath, "utf-8");
       const parsedExistingData = JSON.parse(existingJsonData);
-      console.log(chalk.cyan(`File JSON parsed successfully.`));
+      if (isVerbose) {
+        console.log(chalk.cyan(`File JSON parsed successfully.`));
+      }
       return parsedExistingData;
     } catch {
       console.log(chalk.yellow(`Could not parse file JSON`));
@@ -308,7 +314,9 @@ const init = async (config) => {
         sourceLanguageFile
       );
       const sourceJSON = getFileJSON(sourceLanguageFile);
-      console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
+      if (isVerbose) {
+        console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
+      }
 
       const outputFile = `${outputDirectory}/${namespace}.${language.abbreviation.replace(
         /\s/g,
@@ -316,26 +324,29 @@ const init = async (config) => {
       )}.json`;
       console.log(chalk.cyan(`Output file set to: `), outputFile);
       const outputJSON = getFileJSON(outputFile);
-      console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
+      if (isVerbose) {
+        console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
+      }
 
-      const mappedTranslateStrings = addMissingSourceTranslations(
+      const addedTranslations = addMissingSourceTranslations(
         sourceJSON,
         outputJSON,
         language.sourceLanguage ?? config.sourceLanguage
       );
+      // TODO: can also remove orphans here in a similar way
 
-      console.log(
-        chalk.yellow("translateStrings after data parsing: "),
-        mappedTranslateStrings
-      );
+      // with no new translations, addedTranslations is empty {}, so no need to create any new files
+      if (Object.keys(addedTranslations).length > 0) {
+        console.log(
+          chalk.yellow("addedTranslations after data parsing: "),
+          addedTranslations
+        );
+        let result = await translate(addedTranslations, language.language);
+        console.log(chalk.green("result"), result);
 
-      let result = await translate(mappedTranslateStrings, language.language);
-      console.log(chalk.green("result"), result);
+        result = remapSource(sourceJSON, result);
+        result = mergeExistingTranslations(result, outputFile);
 
-      result = remapSource(sourceJSON, result);
-      result = mergeExistingTranslations(result, outputFile);
-
-      if (JSON.stringify(outputJSON) !== JSON.stringify(result)) {
         console.log(
           chalk.cyan(
             `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
