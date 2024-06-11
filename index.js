@@ -161,7 +161,6 @@ async function translate(addedTranslations, language) {
 
     for (let query of queries) {
       const queryResponse = await sendQuery(query, language);
-      console.log(chalk.blue("Query response: "), queryResponse);
 
       if (isValidInterpolations(query, queryResponse)) {
         buildingOutput = generateAppliedResponse(queryResponse, buildingOutput);
