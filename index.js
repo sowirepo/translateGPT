@@ -8,6 +8,7 @@ import chalk from "chalk";
 
 dotenv.config();
 const isVerbose = false; // TODO: Make this an env variable too
+const queryMaxSafeguard = Number(process.env.TRANSLATEGPT_MAX_QUERIES);
 
 let translateGPTConfig;
 import(process.env.TRANSLATEGPT_JS_PATH)
@@ -161,7 +162,8 @@ async function translate(addedTranslations, language) {
   console.log(chalk.green("buildOut"), buildingOutput);
   let isOutputBuilt = false;
 
-  while (!isOutputBuilt) {
+  let queryCount = 0;
+  while (!isOutputBuilt && queryCount < queryMaxSafeguard) {
     const queries = buildQueries(buildingOutput);
     console.log(chalk.green("Queries"), queries);
 
@@ -173,7 +175,8 @@ async function translate(addedTranslations, language) {
 
     for (let query of queries) {
       const queryResponse = await sendQuery(query, language);
-
+      queryCount++;
+      console.log(chalk.blue("QUERY COUNT: "), queryCount);
       if (isValidInterpolations(query, queryResponse)) {
         buildingOutput = generateAppliedResponse(queryResponse, buildingOutput);
       }
