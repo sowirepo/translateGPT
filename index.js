@@ -7,7 +7,7 @@ import fs from "fs";
 import chalk from "chalk";
 
 dotenv.config();
-const isVerbose = false; // TODO: Make this an env variable too
+const isVerbose = process.env.TRANSLATEGPT_VERBOSE === "true";
 const queryMaxSafeguard = Number(process.env.TRANSLATEGPT_MAX_QUERIES);
 
 let translateGPTConfig;
