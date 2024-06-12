@@ -84,6 +84,7 @@ const sendQuery = async (query, language) => {
   try {
     const completion = await openai.createChatCompletion({
       model: openAIModel,
+      response_format: { type: "json_object" },
       messages: generatePrompt(query, language),
       temperature: 1.0,
     });
