@@ -174,8 +174,16 @@ async function translate(addedTranslations, language) {
     }
 
     for (let query of queries) {
-      const queryResponse = await sendQuery(query, language);
+      const queryResponse = await sendQuery(query, language.language);
       queryCount++;
+      if (queryCount == queryMaxSafeguard) {
+        console.log(
+          chalk.red(
+            `Query count reached max safeguard of ${queryMaxSafeguard}, stopping queries.`
+          )
+        );
+        throw new Error(`Was not able to translate "${query}" into ${language.abbreviation} (or, ${language.language}), please try again or manually add the expected translation to the final language file. Final attempted response was: ${queryResponse}. This is probably due to ChatGPT hallucination`);
+      }
       console.log(chalk.blue("QUERY COUNT: "), queryCount);
       if (isValidInterpolations(query, queryResponse)) {
         buildingOutput = generateAppliedResponse(queryResponse, buildingOutput);
@@ -367,7 +375,7 @@ const init = async () => {
           chalk.yellow("addedTranslations after data parsing: "),
           addedTranslations
         );
-        let result = await translate(addedTranslations, language.language);
+        let result = await translate(addedTranslations, language);
         console.log(chalk.green("result"), result);
 
         result = remapSource(sourceJSON, result);
