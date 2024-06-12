@@ -2,13 +2,14 @@
 import dotenv from "dotenv";
 import prettier from "prettier";
 import { Configuration, OpenAIApi } from "openai";
-import { encode } from "gpt-3-encoder";
+import { encode } from "gpt-tokenizer";
 import fs from "fs";
 import chalk from "chalk";
 
 dotenv.config();
 const isVerbose = process.env.TRANSLATEGPT_VERBOSE === "true";
 const queryMaxSafeguard = Number(process.env.TRANSLATEGPT_MAX_QUERIES);
+const openAIModel = process.env.OPENAI_MODEL;
 
 let translateGPTConfig;
 import(process.env.TRANSLATEGPT_JS_PATH)
@@ -82,7 +83,7 @@ const generatePrompt = (query, language) => {
 const sendQuery = async (query, language) => {
   try {
     const completion = await openai.createChatCompletion({
-      model: "gpt-3.5-turbo-0301",
+      model: openAIModel,
       messages: generatePrompt(query, language),
       temperature: 1.0,
     });

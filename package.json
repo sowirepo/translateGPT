@@ -29,7 +29,7 @@
   "dependencies": {
     "chalk": "^5.2.0",
     "dotenv": "^16.0.3",
-    "gpt-3-encoder": "^1.1.4",
+    "gpt-tokenizer": "^2.1.2",
     "openai": "^3.2.1",
     "prettier": "^2.8.8"
   },
