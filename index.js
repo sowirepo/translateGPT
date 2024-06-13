@@ -2,27 +2,31 @@
 import dotenv from "dotenv";
 import prettier from "prettier";
 import { Configuration, OpenAIApi } from "openai";
-import { encode } from "gpt-3-encoder";
+import { encode } from "gpt-tokenizer";
 import fs from "fs";
 import chalk from "chalk";
 
 dotenv.config();
+const isVerbose = process.env.TRANSLATEGPT_VERBOSE === "true";
+const queryMaxSafeguard = Number(process.env.TRANSLATEGPT_MAX_QUERIES);
+const openAIModel = process.env.OPENAI_MODEL;
 
+let translateGPTConfig;
 import(process.env.TRANSLATEGPT_JS_PATH)
   .then((module) => {
-    const { config: config } = module;
+    translateGPTConfig = module.config;
 
-    console.log(chalk.cyan("config: "), JSON.stringify(config));
-    init(config);
+    console.log(chalk.cyan("config: "), JSON.stringify(translateGPTConfig));
+    init();
   })
   .catch((error) => {
     console.error(chalk.red("Error importing module:"), error);
   });
 
-const configuration = new Configuration({
+const openAIConfig = new Configuration({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
+const openai = new OpenAIApi(openAIConfig);
 
 const buildQueries = (mappedTranslateStrings) => {
   const tokenLimit = 500;
@@ -55,12 +59,20 @@ const buildQueries = (mappedTranslateStrings) => {
 const generatePrompt = (query, language) => {
   const prompt = [
     {
+      role: "system",
+      content:
+        "The translations that will be asked for in this conversation will be used in the following way: " +
+        translateGPTConfig.context +
+        ". The following prompt will give you instructions on what to translate and how",
+    },
+    {
       role: "user",
-      content: `This JSON is used in a platform implementing i18n, return it with the empty value strings filled in with the translation of the keys into ${language}. Values in {{}} are used for interpolation, so they should be placed correctly but anything inside {{}} should be not be translated. JSON ONLY. NO DISCUSSION. DON'T ALTER THE KEYS. ALWAYS FILL IN THE EMPTY STRINGS WITH A TRANSLATION:  ${query} `,
+      content: `This JSON is used in a platform implementing i18n, return it with the empty value strings filled in with the translation of the keys into ${language}. Values in {{}} are used for interpolation, so they should be placed correctly but anything inside {{}} should be not be translated. JSON ONLY. NO DISCUSSION. DO NOT ALTER THE KEYS IN THE JSON. ALWAYS FILL IN ONLY THE EMPTY STRING VALUE WITH YOUR TRANSLATION:  ${query} `,
     },
   ];
 
-  console.log(chalk.blue("Prompt: "), prompt);
+  // Only log the user prompt, since the system prompt doesn't change
+  console.log(chalk.blue("Prompt: "), prompt[1]);
   console.log(
     chalk.yellow("Translations are still being generated, please wait.")
   );
@@ -71,7 +83,8 @@ const generatePrompt = (query, language) => {
 const sendQuery = async (query, language) => {
   try {
     const completion = await openai.createChatCompletion({
-      model: "gpt-3.5-turbo-0301",
+      model: openAIModel,
+      response_format: { type: "json_object" },
       messages: generatePrompt(query, language),
       temperature: 1.0,
     });
@@ -91,6 +104,8 @@ const sendQuery = async (query, language) => {
   }
 };
 
+// Merging new data from response into the building output, which should be a running list of translations, some with empty strings that will need to be filled
+// Eventually, this building output should be a complete list of translations, and then we can stop running queries... but that's not happening rn!
 const generateAppliedResponse = (response, buildingOutput) => {
   let appliedResponse = buildingOutput;
   let parsedResponse;
@@ -115,19 +130,21 @@ const generateAppliedResponse = (response, buildingOutput) => {
   return appliedResponse;
 };
 
+// Returns a JSON object with the source translations that are missing in the output JSON
+// Only adds to returned result if the key from source does not exist in output
 const addMissingSourceTranslations = (
   sourceJSON,
   outputJSON,
   sourceLanguage
 ) => {
   console.log(chalk.cyan(`Adding translations from: ${sourceLanguage}`));
-  const merged = {};
+  const addedTranslations = {};
 
   if (sourceJSON && outputJSON) {
     console.log(chalk.cyan("JSON from source and output found, merging."));
     for (const [key, value] of Object.entries(sourceJSON)) {
       if (!outputJSON[key]) {
-        merged[value] = "";
+        addedTranslations[value] = "";
       }
     }
   } else if (sourceJSON && !outputJSON) {
@@ -135,19 +152,20 @@ const addMissingSourceTranslations = (
       chalk.cyan("Output file/JSON not found, adding all source translations.")
     );
     for (const [key, value] of Object.entries(sourceJSON)) {
-      merged[value] = "";
+      addedTranslations[value] = "";
     }
   }
 
-  return merged;
+  return addedTranslations;
 };
 
-async function translate(toTranslate, language) {
-  let buildingOutput = { ...toTranslate };
+async function translate(addedTranslations, language) {
+  let buildingOutput = { ...addedTranslations };
   console.log(chalk.green("buildOut"), buildingOutput);
   let isOutputBuilt = false;
 
-  while (!isOutputBuilt) {
+  let queryCount = 0;
+  while (!isOutputBuilt && queryCount < queryMaxSafeguard) {
     const queries = buildQueries(buildingOutput);
     console.log(chalk.green("Queries"), queries);
 
@@ -158,9 +176,17 @@ async function translate(toTranslate, language) {
     }
 
     for (let query of queries) {
-      const queryResponse = await sendQuery(query, language);
-      console.log(chalk.blue("Query response: "), queryResponse);
-
+      const queryResponse = await sendQuery(query, language.language);
+      queryCount++;
+      if (queryCount == queryMaxSafeguard) {
+        console.log(
+          chalk.red(
+            `Query count reached max safeguard of ${queryMaxSafeguard}, stopping queries.`
+          )
+        );
+        throw new Error(`Was not able to translate "${query}" into ${language.abbreviation} (or, ${language.language}), please try again or manually add the expected translation to the final language file. Final attempted response was: ${queryResponse}. This is probably due to ChatGPT hallucination`);
+      }
+      console.log(chalk.blue("QUERY COUNT: "), queryCount);
       if (isValidInterpolations(query, queryResponse)) {
         buildingOutput = generateAppliedResponse(queryResponse, buildingOutput);
       }
@@ -221,17 +247,27 @@ const mergeExistingTranslations = (result, outputFile) => {
           "Destination file already exists, merging existing translations with new translations."
         )
       );
-      console.log(
-        chalk.cyan(
-          "Existing translations: ",
-          JSON.stringify(JSON.stringify(Object.entries(parsedExistingData)))
-        )
-      );
-      console.log(
-        chalk.cyan("New translations: ", JSON.stringify(Object.entries(result)))
-      );
+      if (isVerbose) {
+        console.log(
+          chalk.cyan(
+            "Existing translations: ",
+            JSON.stringify(JSON.stringify(Object.entries(parsedExistingData)))
+          )
+        );
+        console.log(
+          chalk.cyan(
+            "New translations: ",
+            JSON.stringify(Object.entries(result))
+          )
+        );
+      }
+
       const mergedTranslations = { ...parsedExistingData, ...result };
-      console.log(chalk.blue("Merged translations: "), mergedTranslations);
+      if (isVerbose) {
+        console.log(chalk.blue("Merged translations: "), mergedTranslations);
+      } else {
+        console.log(chalk.blue("Translations merged successfully."));
+      }
       return mergedTranslations;
     } catch {
       console.log(chalk.cyan("Destination file currently empty."));
@@ -245,11 +281,15 @@ const mergeExistingTranslations = (result, outputFile) => {
 
 const getFileJSON = (filePath) => {
   if (fs.existsSync(filePath)) {
-    console.log(chalk.cyan(`File found: ${filePath}`));
+    if (isVerbose) {
+      console.log(chalk.cyan(`File found: ${filePath}`));
+    }
     try {
       const existingJsonData = fs.readFileSync(filePath, "utf-8");
       const parsedExistingData = JSON.parse(existingJsonData);
-      console.log(chalk.cyan(`File JSON parsed successfully.`));
+      if (isVerbose) {
+        console.log(chalk.cyan(`File JSON parsed successfully.`));
+      }
       return parsedExistingData;
     } catch {
       console.log(chalk.yellow(`Could not parse file JSON`));
@@ -260,7 +300,7 @@ const getFileJSON = (filePath) => {
   }
 };
 
-if (!configuration.apiKey) {
+if (!openAIConfig.apiKey) {
   console.log(
     chalk.red(
       "OpenAI API key not configured, please follow instructions in README.md"
@@ -272,7 +312,9 @@ if (!configuration.apiKey) {
 const remapSource = (source, output) => {
   if (Object.keys(output).length > 0) {
     console.log(chalk.yellow("Remapping source keys to output values."));
-    console.log(chalk.blue("Source", JSON.stringify(source)));
+    if (isVerbose) {
+      console.log(chalk.blue("Source", JSON.stringify(source)));
+    }
     console.log(chalk.blue("Output", JSON.stringify(output)));
     const remap = {};
     for (const [key, value] of Object.entries(source)) {
@@ -288,17 +330,17 @@ const remapSource = (source, output) => {
   }
 };
 
-const init = async (config) => {
-  for (const namespace of config.namespaces) {
+const init = async () => {
+  for (const namespace of translateGPTConfig.namespaces) {
     const outputDirectory = `${process.env.TRANSLATEGPT_OUTPUT_DIRECTORY}/${namespace}`;
     if (!fs.existsSync(outputDirectory)) {
       fs.mkdirSync(outputDirectory);
       console.log(chalk.cyan("Folder created: "), outputDirectory);
     }
     console.log(chalk.cyan(`Output directory set to: `), outputDirectory);
-    for (const language of config.languages) {
+    for (const language of translateGPTConfig.languages) {
       const sourceLanguageAbbreviation =
-        language.sourceLanguage ?? config.sourceLanguage;
+        language.sourceLanguage ?? translateGPTConfig.sourceLanguage;
       const sourceLanguageFile = `${outputDirectory}/${namespace}.${sourceLanguageAbbreviation.replace(
         /\s/g,
         "_"
@@ -308,7 +350,9 @@ const init = async (config) => {
         sourceLanguageFile
       );
       const sourceJSON = getFileJSON(sourceLanguageFile);
-      console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
+      if (isVerbose) {
+        console.log(chalk.cyan(`Source JSON set to: `), sourceJSON);
+      }
 
       const outputFile = `${outputDirectory}/${namespace}.${language.abbreviation.replace(
         /\s/g,
@@ -316,33 +360,38 @@ const init = async (config) => {
       )}.json`;
       console.log(chalk.cyan(`Output file set to: `), outputFile);
       const outputJSON = getFileJSON(outputFile);
-      console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
+      if (isVerbose) {
+        console.log(chalk.cyan(`Output JSON set to: `), outputJSON);
+      }
 
-      const mappedTranslateStrings = addMissingSourceTranslations(
+      const addedTranslations = addMissingSourceTranslations(
         sourceJSON,
         outputJSON,
-        language.sourceLanguage ?? config.sourceLanguage
+        language.sourceLanguage ?? translateGPTConfig.sourceLanguage
       );
+      // TODO: can also remove orphans here in a similar way
 
-      console.log(
-        chalk.yellow("translateStrings after data parsing: "),
-        mappedTranslateStrings
-      );
-
-      let result = await translate(mappedTranslateStrings, language.language);
-      console.log(chalk.green("result"), result);
-
-      result = remapSource(sourceJSON, result);
-      result = mergeExistingTranslations(result, outputFile);
-
-      if (JSON.stringify(outputJSON) !== JSON.stringify(result)) {
+      // With no new translations in the source file, addedTranslations is empty {}, so no need to create any new files
+      if (Object.keys(addedTranslations).length > 0) {
         console.log(
-          chalk.cyan(
-            `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
-              result
-            )}`
-          )
+          chalk.yellow("addedTranslations after data parsing: "),
+          addedTranslations
         );
+        let result = await translate(addedTranslations, language);
+        console.log(chalk.green("result"), result);
+
+        result = remapSource(sourceJSON, result);
+        result = mergeExistingTranslations(result, outputFile);
+
+        if (isVerbose) {
+          console.log(
+            chalk.cyan(
+              `Attempting to write file. Path: ${outputFile} | Result: ${JSON.stringify(
+                result
+              )}`
+            )
+          );
+        }
 
         await new Promise((resolve, reject) => {
           fs.writeFile(

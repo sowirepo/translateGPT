@@ -4,7 +4,10 @@
 # Do not share your OpenAI API key with anyone! It should remain a secret.
 # Do not commit this file! Ensure .env is in the .gitignore!
 OPENAI_API_KEY=123abcdefghijklmnop
+OPENAI_MODEL=gpt-3.5-turbo
 
-TRANSLATEGPT_JS_PATH="~/your_cool_project/translations/translateGPT.mjs"
-TRANSLATEGPT_OUTPUT_DIRECTORY="~/your_cool_project/translations"
+TRANSLATEGPT_JS_PATH="./translations/translateGPT.mjs"
+TRANSLATEGPT_OUTPUT_DIRECTORY="~/translations"
 
+TRANSLATEGPT_VERBOSE=false
+TRANSLATEGPT_MAX_QUERIES=100

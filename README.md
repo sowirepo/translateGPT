@@ -20,18 +20,23 @@ Create a `.env` file in the root directory of your project and provide the follo
 
 ```
 OPENAI_API_KEY=<your_openai_api_key>
+OPENAI_MODEL=<openai_model>
 TRANSLATEGPT_JS_PATH="<path_to_translateGPT.mjs>"
 TRANSLATEGPT_OUTPUT_DIRECTORY="<path_to_output_directory>"
+TRANSLATEGPT_MAX_QUERIES=<number of max queries to the OpenAI API per translation, as a safeguard for hallucinations>
+TRANSLATEGPT_VERBOSE=<boolean true or false to suppress excess console logs>
 ```
 
 Note: Do not share your OpenAI API key with anyone and ensure that the `.env` file is added to the `.gitignore` file.
+
+Note 2: You can find the valid list of model names in the [official docs](https://platform.openai.com/docs/models)
 
 ### TranslateGPT.mjs
 
 Create a `translateGPT.mjs` file in the `translations` directory of your project and define the translation configuration using the `config` object. Here's an example:
 
 ```javascript
-// Example of how to structure your translations file.
+// Example of how to structure your translations file, for an e-commerce site
 
 export const config = {
   sourceLanguage: "en",
@@ -59,6 +64,7 @@ export const config = {
     },
   ],
   namespaces: ["app", "shop"],
+  context: "An innovative e-commerce platform offering a wide range of products from electronics to fashion. The website is designed to provide a seamless shopping experience with a focus on user convenience, security, and satisfaction"
 };
 ```
 
