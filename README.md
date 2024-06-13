@@ -68,6 +68,8 @@ export const config = {
 };
 ```
 
+> Note: if you want to set a different `sourceLanguage` for one of your languages than the default, make sure this language is listed AFTER its source language. For example, German's source language (listed second) is Dutch (listed first)
+
 Modify the configuration according to your project's needs.
 
 ## Translations

@@ -159,6 +159,24 @@ const addMissingSourceTranslations = (
   return addedTranslations;
 };
 
+const removeOrphanTranslations = (sourceJSON, outputJSON) => {
+  let didRemoveOrphans = false;
+  if (sourceJSON && outputJSON) {
+    console.log(chalk.cyan("Checking for any orphan translations in output (any keys that aren't found in source)"));
+    for (const [key, value] of Object.entries(outputJSON)) {
+      if (!sourceJSON[key]) {
+        console.log(
+          chalk.yellow(`Removing orphan translation: ${key} - ${value}`)
+        );
+        // This actually removes the key from the original outputJSON object passed into removeOrphanTranslations
+        delete outputJSON[key];
+        didRemoveOrphans = true;
+      }
+    }
+  }
+  return didRemoveOrphans;
+}
+
 async function translate(addedTranslations, language) {
   let buildingOutput = { ...addedTranslations };
   console.log(chalk.green("buildOut"), buildingOutput);
@@ -369,20 +387,26 @@ const init = async () => {
         outputJSON,
         language.sourceLanguage ?? translateGPTConfig.sourceLanguage
       );
-      // TODO: can also remove orphans here in a similar way
+      const didAddTranslations = Object.keys(addedTranslations).length > 0;
 
-      // With no new translations in the source file, addedTranslations is empty {}, so no need to create any new files
-      if (Object.keys(addedTranslations).length > 0) {
+      let result = outputJSON;
+      if (didAddTranslations) {
         console.log(
           chalk.yellow("addedTranslations after data parsing: "),
           addedTranslations
         );
-        let result = await translate(addedTranslations, language);
+        result = await translate(addedTranslations, language);
         console.log(chalk.green("result"), result);
 
         result = remapSource(sourceJSON, result);
         result = mergeExistingTranslations(result, outputFile);
+      }
 
+      // Remove any orphan translations (keys that exist in output but not in source)
+      const didRemoveOrphans = removeOrphanTranslations(sourceJSON, result);
+
+      // With no new translations or no orphans removed, there is no need to update any files
+      if (didAddTranslations || didRemoveOrphans) {
         if (isVerbose) {
           console.log(
             chalk.cyan(
@@ -414,7 +438,7 @@ const init = async () => {
       } else {
         console.log(
           chalk.cyan(
-            "File contents are the same as output, skipping file write for: "
+            "No new translations or orphans found. File contents are the same as output, skipping file write for: "
           ),
           outputFile
         );
